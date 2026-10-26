@@ -67,11 +67,20 @@ class ErrorMetrics(_Out):
 
 class Insight(_Out):
     percentile: float
+    basis: Literal["total", "random"] = Field(
+        description="total: P-th percentile of error; random: of error minus its mean"
+    )
     n: int
     buffer_mw: float | None
-    achieved_coverage: float | None
+    achieved_coverage: float | None = Field(description="Share of hours covered on this basis")
+    coverage_vs_fuelhh: float | None = Field(
+        description="Share of hours where actual (FUELHH) >= forecast - buffer"
+    )
     offset_mw: float | None
     random_component_mw: float | None
+    worst_1pct_mw: float | None = Field(
+        description="99th percentile of forecast - actual over all hours, floored at 0"
+    )
     headline: str
     detail: str
     caveat: str | None
@@ -92,6 +101,10 @@ class SeriesPoint(BaseModel):
     error_mw: float
     publish_time: datetime
     horizon_h: float
+    corrected_mw: float | None = Field(
+        default=None,
+        description="Rolling bias-corrected forecast (cutoff mode; see /metrics/correction)",
+    )
 
 
 class SeriesResponse(BaseModel):
@@ -150,6 +163,35 @@ class BiasDiagnosticsResponse(BaseModel):
     bias_at_zero_horizon_mw: float | None
     hindcast: BiasBucket
     by_forecast_level: list[BiasBucket]
+    by_actual_level: list[BiasBucket]
+    hindcast_by_level: list[BiasBucket] = Field(
+        description="WINDFOR rows for hours already ended at publish, grouped by WINDFOR level"
+    )
+    hindcast_by_actual_level: list[BiasBucket] = Field(
+        description="The same rows grouped by actual (FUELHH) level"
+    )
+
+
+class CorrectionFit(BaseModel):
+    day: date
+    slope: float
+    intercept: float
+    train_hours: int
+    train_first_day: date
+    train_last_day: date
+
+
+class CorrectionResponse(BaseModel):
+    query: QueryEcho
+    method: str
+    window_days: int
+    days_total: int
+    days_corrected: int
+    raw: ErrorMetrics
+    corrected: ErrorMetrics
+    mae_change_pct: float | None
+    rmse_change_pct: float | None
+    latest_fit: CorrectionFit | None
 
 
 class DataStatus(BaseModel):

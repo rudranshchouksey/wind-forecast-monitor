@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from app.services.alignment import hourly_actuals
-from app.services.insight import OFFSET_CAVEAT, buffer_recommendation
+from app.services.insight import OFFSET_CAVEAT, RANDOM_CAVEAT, buffer_recommendation
 from app.services.metrics import compute_metrics, histogram
 from tests.conftest import utc
 
@@ -139,3 +139,23 @@ def test_point_alignment_uses_on_the_hour_value() -> None:
 
 def test_alignment_of_empty_input() -> None:
     assert hourly_actuals(_actuals([])).empty
+
+
+def test_random_only_buffer_uses_debiased_errors() -> None:
+    errors = np.arange(1, 11) * 100.0  # mean 550
+    ins = buffer_recommendation(errors, 90, "random")
+    assert ins.basis == "random"
+    assert ins.buffer_mw == pytest.approx(360.0)  # P90 of errors - 550
+    assert ins.achieved_coverage == pytest.approx(0.9)  # on de-biased errors
+    assert ins.coverage_vs_fuelhh == pytest.approx(0.3)  # errors <= 360: 100, 200, 300
+    assert ins.caveat == RANDOM_CAVEAT
+    assert "Excluding the systematic offset" in ins.headline
+    assert "only 30% of hours" in ins.detail
+
+
+def test_worst_1pct_is_p99_of_signed_error_over_all_hours() -> None:
+    errors = np.arange(1, 11) * 100.0
+    total = buffer_recommendation(errors, 90, "total")
+    assert total.worst_1pct_mw == pytest.approx(991.0)  # rank 8.91 -> 900 + 0.91*100
+    assert total.coverage_vs_fuelhh == total.achieved_coverage
+    assert buffer_recommendation(-errors, 90).worst_1pct_mw == 0.0

@@ -277,3 +277,41 @@ def test_serves_frontend_when_built(
     c = make_client(settings, frontend_dist=dist)
     assert "dashboard" in c.get("/").text
     assert c.get("/api/v1/meta").status_code == 200
+
+
+def test_metrics_buffer_basis(client: TestClient) -> None:
+    total = client.get("/api/v1/metrics").json()["insight"]
+    random = client.get("/api/v1/metrics", params={"buffer_basis": "random"}).json()["insight"]
+    assert total["basis"] == "total"
+    assert random["basis"] == "random"
+    assert random["buffer_mw"] < total["buffer_mw"]
+    assert random["coverage_vs_fuelhh"] < random["achieved_coverage"]
+    assert total["worst_1pct_mw"] >= total["buffer_mw"]
+    bad = client.get("/api/v1/metrics", params={"buffer_basis": "other"})
+    assert bad.status_code == 422
+
+
+def test_correction_endpoint(settings: Settings, repo: WindRepository) -> None:
+    s = settings.model_copy(update={"delivery_from": FIRST, "delivery_to": LAST})
+    synthetic.build(repo, s.history_from, LAST)
+    c = make_client(settings)
+    body = c.get("/api/v1/metrics/correction").json()
+    assert body["days_corrected"] == 3
+    assert body["mae_change_pct"] == pytest.approx(-100, abs=1e-6)
+    assert "D-8..D-2" in body["method"]
+    assert body["latest_fit"]["train_last_day"] == "2026-01-02"
+    series = c.get("/api/v1/forecast-vs-actual").json()["points"]
+    assert all(p["corrected_mw"] is not None for p in series)
+    csv_text = c.get("/api/v1/forecast-vs-actual", params={"format": "csv"}).text
+    assert "corrected_mw" in csv_text.splitlines()[0]
+    r = c.get("/api/v1/metrics/correction", params={"mode": "horizon"})
+    assert r.status_code == 400
+
+
+def test_correction_without_history_reports_none(client: TestClient) -> None:
+    body = client.get("/api/v1/metrics/correction").json()
+    assert body["days_corrected"] == 0
+    assert body["mae_change_pct"] is None
+    assert body["latest_fit"] is None
+    points = client.get("/api/v1/forecast-vs-actual").json()["points"]
+    assert all(p["corrected_mw"] is None for p in points)

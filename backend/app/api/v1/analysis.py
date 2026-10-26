@@ -3,7 +3,8 @@ threadpool); results are memoised in the service and marked cacheable for client
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+import math
+from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
@@ -13,6 +14,7 @@ from app.api.v1.mappers import coverage, query_echo
 from app.core.timeutils import LONDON
 from app.models import api
 from app.services.analysis import DEFAULT_HORIZONS, MAX_HORIZON_H, AnalysisQuery, QueryError
+from app.services.insight import BufferBasis
 
 router = APIRouter(tags=["analysis"], dependencies=[Depends(cache_headers)])
 
@@ -33,12 +35,12 @@ def forecast_vs_actual(
     format: Annotated[Literal["json", "csv"], Query()] = "json",
 ) -> api.SeriesResponse | Response:
     ev = service.evaluate(q)
-    frame = ev.frame
+    frame = service.series(q)
     if format == "csv":
         out = frame.assign(target_time_london=frame["target_time"].dt.tz_convert(LONDON))
         out = out[
             ["target_time", "target_time_london", "actual_mw", "forecast_mw", "error_mw",
-             "publish_time", "horizon_h"]
+             "publish_time", "horizon_h", "corrected_mw"]
         ]  # fmt: skip
         csv = out.to_csv(index=False, float_format="%.1f", date_format="%Y-%m-%dT%H:%M:%S%z")
         name = f"wind-forecast-vs-actual_{q.first_day}_{q.last_day}_{q.mode}.csv"
@@ -55,6 +57,7 @@ def forecast_vs_actual(
             error_mw=r.error_mw,
             publish_time=r.publish_time,
             horizon_h=r.horizon_h,
+            corrected_mw=_optional_float(r.corrected_mw),
         )
         for r in frame.itertuples(index=False)
     ]
@@ -63,9 +66,16 @@ def forecast_vs_actual(
 
 @router.get("/metrics", response_model=api.MetricsResponse, summary="Headline error metrics")
 def metrics(
-    q: QueryDep, service: ServiceDep, settings: SettingsDep, percentile: PercentileDep = None
+    q: QueryDep,
+    service: ServiceDep,
+    settings: SettingsDep,
+    percentile: PercentileDep = None,
+    buffer_basis: Annotated[
+        BufferBasis,
+        Query(description="total: include the persistent offset; random: de-biased error only"),
+    ] = "total",
 ) -> api.MetricsResponse:
-    res = service.metrics(q, percentile or settings.default_percentile)
+    res = service.metrics(q, percentile or settings.default_percentile, buffer_basis)
     return api.MetricsResponse(
         query=query_echo(q),
         metrics=api.ErrorMetrics.model_validate(res.metrics),
@@ -177,4 +187,54 @@ def bias_diagnostics(q: QueryDep, service: ServiceDep) -> api.BiasDiagnosticsRes
         bias_at_zero_horizon_mw=d.bias_at_zero_horizon_mw,
         hindcast=api.BiasBucket.model_validate(d.hindcast),
         by_forecast_level=[api.BiasBucket.model_validate(b) for b in d.by_forecast_level],
+        by_actual_level=[api.BiasBucket.model_validate(b) for b in d.by_actual_level],
+        hindcast_by_level=[api.BiasBucket.model_validate(b) for b in d.hindcast_by_level],
+        hindcast_by_actual_level=[
+            api.BiasBucket.model_validate(b) for b in d.hindcast_by_actual_level
+        ],
+    )
+
+
+def _optional_float(value: object) -> float | None:
+    number = float(cast(float, value))
+    return None if math.isnan(number) else number
+
+
+def _pct_change(before: float | None, after: float | None) -> float | None:
+    if before is None or after is None or before == 0:
+        return None
+    return (after - before) / before * 100
+
+
+@router.get(
+    "/metrics/correction",
+    response_model=api.CorrectionResponse,
+    summary="Raw vs rolling bias-corrected forecast accuracy (cutoff mode)",
+)
+def correction(q: QueryDep, service: ServiceDep) -> api.CorrectionResponse:
+    res = service.correction(q)
+    fit = res.latest_fit
+    return api.CorrectionResponse(
+        query=query_echo(q),
+        method=(
+            f"OLS actual = a * forecast + b, refitted per delivery day D on the {res.window_days} "
+            f"complete days D-{res.window_days + 1}..D-2 known at the D-1 cutoff"
+        ),
+        window_days=res.window_days,
+        days_total=res.days_total,
+        days_corrected=res.days_corrected,
+        raw=api.ErrorMetrics.model_validate(res.raw),
+        corrected=api.ErrorMetrics.model_validate(res.corrected),
+        mae_change_pct=_pct_change(res.raw.mae_mw, res.corrected.mae_mw),
+        rmse_change_pct=_pct_change(res.raw.rmse_mw, res.corrected.rmse_mw),
+        latest_fit=None
+        if fit is None
+        else api.CorrectionFit(
+            day=fit.day,
+            slope=fit.slope,
+            intercept=fit.intercept,
+            train_hours=fit.train_hours,
+            train_first_day=fit.train_first_day,
+            train_last_day=fit.train_last_day,
+        ),
     )

@@ -21,8 +21,14 @@ from app.core.config import Settings
 from app.core.timeutils import LONDON, delivery_range_bounds
 from app.repositories.sqlite import WindRepository
 from app.services.alignment import hourly_actuals
-from app.services.diagnostics import BiasBucket, bias_by_forecast_level, hindcast_bias
-from app.services.insight import BufferInsight, buffer_recommendation
+from app.services.correction import DailyFit, rolling_linear_correction
+from app.services.diagnostics import (
+    BiasBucket,
+    bias_by_level,
+    hindcast_bias,
+    hindcast_rows,
+)
+from app.services.insight import BufferBasis, BufferInsight, buffer_recommendation
 from app.services.metrics import ErrorMetrics, Histogram, compute_metrics, histogram
 from app.services.selection import select_at_cutoff, select_at_horizon
 
@@ -105,6 +111,19 @@ class BiasDiagnostics:
     bias_at_zero_horizon_mw: float | None
     hindcast: BiasBucket
     by_forecast_level: list[BiasBucket]
+    by_actual_level: list[BiasBucket]
+    hindcast_by_level: list[BiasBucket]
+    hindcast_by_actual_level: list[BiasBucket]
+
+
+@dataclass(frozen=True, slots=True)
+class CorrectionResult:
+    window_days: int
+    days_total: int
+    days_corrected: int
+    raw: ErrorMetrics
+    corrected: ErrorMetrics
+    latest_fit: DailyFit | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,8 +157,9 @@ class AnalysisService:
             if self._forecasts is None or self._actuals is None:
                 if not self._repo.path.exists():
                     raise DataUnavailableError(f"database not found at {self._repo.path}")
+                # History before delivery_from feeds the rolling bias correction only.
                 start, end = delivery_range_bounds(
-                    self._settings.delivery_from, self._settings.delivery_to
+                    self._settings.history_from, self._settings.delivery_to
                 )
                 forecasts = self._repo.load_forecasts(start, end)
                 actuals = hourly_actuals(
@@ -163,6 +183,10 @@ class AnalysisService:
 
     def evaluate(self, q: AnalysisQuery) -> Evaluation:
         self.validate(q)
+        return self._cached(q)
+
+    def _cached(self, q: AnalysisQuery) -> Evaluation:
+        """Memoised evaluation without range validation (internal callers may use history days)."""
         with self._lock:
             hit = self._cache.get(q)
             if hit is not None:
@@ -209,16 +233,60 @@ class AnalysisService:
     # -- public views -------------------------------------------------------------------------
 
     def series(self, q: AnalysisQuery) -> pd.DataFrame:
-        return self.evaluate(q).frame
+        """Evaluation rows plus ``corrected_mw`` (cutoff mode only; NaN where unavailable)."""
+        frame = self.evaluate(q).frame
+        if q.mode != "cutoff":
+            return frame.assign(corrected_mw=np.nan)
+        corrected, _ = self._corrected(q)
+        return frame.merge(corrected[["target_time", "corrected_mw"]], on="target_time", how="left")
 
-    def metrics(self, q: AnalysisQuery, percentile: float) -> MetricsResult:
+    def metrics(
+        self, q: AnalysisQuery, percentile: float, basis: BufferBasis = "total"
+    ) -> MetricsResult:
         ev = self.evaluate(q)
         horizon = ev.frame["horizon_h"]
         return MetricsResult(
             metrics=self._metrics(ev.frame),
             coverage=ev.coverage,
-            insight=buffer_recommendation(ev.frame["error_mw"].to_numpy(), percentile),
+            insight=buffer_recommendation(ev.frame["error_mw"].to_numpy(), percentile, basis),
             mean_horizon_h=float(horizon.mean()) if len(horizon) else None,
+        )
+
+    # -- bias correction ----------------------------------------------------------------------
+
+    def _corrected(self, q: AnalysisQuery) -> tuple[pd.DataFrame, list[DailyFit]]:
+        """Rolling correction over history + query range, restricted to the query's days."""
+        history = self._cached(
+            AnalysisQuery(self._settings.history_from, q.last_day, "cutoff", q.cutoff_time)
+        )
+        corrected, fits = rolling_linear_correction(
+            history.frame, window_days=self._settings.correction_window_days
+        )
+        start, end = delivery_range_bounds(q.first_day, q.last_day)
+        in_range = (corrected["target_time"] >= start) & (corrected["target_time"] < end)
+        fits = [f for f in fits if q.first_day <= f.day <= q.last_day]
+        return corrected.loc[in_range].reset_index(drop=True), fits
+
+    def correction(self, q: AnalysisQuery) -> CorrectionResult:
+        """Raw vs bias-corrected accuracy over the hours where a correction exists."""
+        self.validate(q)
+        if q.mode != "cutoff":
+            raise QueryError("bias correction is only defined at the decision cutoff (mode=cutoff)")
+        corrected, fits = self._corrected(q)
+        common = corrected.dropna(subset=["corrected_mw"])
+        raw = self._metrics(common)
+        fixed = compute_metrics(
+            common["corrected_mw"].to_numpy(),
+            common["actual_mw"].to_numpy(),
+            mape_min_actual_mw=self._settings.mape_min_actual_mw,
+        )
+        return CorrectionResult(
+            window_days=self._settings.correction_window_days,
+            days_total=(q.last_day - q.first_day).days + 1,
+            days_corrected=len(fits),
+            raw=raw,
+            corrected=fixed,
+            latest_fit=fits[-1] if fits else None,
         )
 
     def _grouped(
@@ -262,11 +330,15 @@ class AnalysisService:
         start, end = delivery_range_bounds(q.first_day, q.last_day)
         window = forecasts.loc[(forecasts["start_time"] >= start) & (forecasts["start_time"] < end)]
         zero = self.evaluate(AnalysisQuery(q.first_day, q.last_day, "horizon", q.cutoff_time, 0.0))
+        hindcast = hindcast_rows(window, actuals)
         return BiasDiagnostics(
             overall_bias_mw=float(frame["error_mw"].mean()) if len(frame) else None,
             bias_at_zero_horizon_mw=(
                 float(zero.frame["error_mw"].mean()) if len(zero.frame) else None
             ),
             hindcast=hindcast_bias(window, actuals),
-            by_forecast_level=bias_by_forecast_level(frame),
+            by_forecast_level=bias_by_level(frame, "forecast"),
+            by_actual_level=bias_by_level(frame, "actual"),
+            hindcast_by_level=bias_by_level(hindcast, "forecast"),
+            hindcast_by_actual_level=bias_by_level(hindcast, "actual"),
         )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -130,3 +130,57 @@ def test_missing_or_empty_database(settings: Settings, tmp_path: Path) -> None:
         AnalysisService(empty_repo, settings).evaluate(
             AnalysisQuery(settings.delivery_from, settings.delivery_from)
         )
+
+
+@pytest.fixture
+def service_with_history(settings: Settings, repo: WindRepository) -> AnalysisService:
+    s = settings.model_copy(update={"delivery_from": FIRST, "delivery_to": LAST})
+    synthetic.build(repo, s.history_from, LAST)
+    return AnalysisService(repo, s)
+
+
+def test_correction_with_history_corrects_every_day(service_with_history: AnalysisService) -> None:
+    res = service_with_history.correction(q())
+    assert (res.days_total, res.days_corrected) == (3, 3)
+    assert res.window_days == 7
+    # In the synthetic data actual is an exact linear function of the cutoff forecast.
+    assert res.raw.mae_mw is not None
+    assert res.corrected.mae_mw is not None
+    assert res.corrected.mae_mw < 1e-6 < res.raw.mae_mw
+    assert res.latest_fit is not None
+    assert res.latest_fit.train_last_day == LAST - timedelta(days=2)
+
+
+def test_series_carries_corrected_values(service_with_history: AnalysisService) -> None:
+    frame = service_with_history.series(q())
+    assert frame["corrected_mw"].notna().all()
+    np.testing.assert_allclose(frame["corrected_mw"], frame["actual_mw"], atol=1e-6)
+    horizon = service_with_history.series(q(mode="horizon", horizon_h=4))
+    assert horizon["corrected_mw"].isna().all()
+
+
+def test_correction_without_history_is_empty_not_leaky(service: AnalysisService) -> None:
+    res = service.correction(q())
+    assert res.days_corrected == 0
+    assert res.corrected.n == 0
+    assert res.latest_fit is None
+
+
+def test_correction_only_in_cutoff_mode(service: AnalysisService) -> None:
+    with pytest.raises(QueryError, match="cutoff"):
+        service.correction(q(mode="horizon"))
+
+
+def test_random_basis_buffer_via_service(service: AnalysisService) -> None:
+    total = service.metrics(q(), 90, "total").insight
+    random = service.metrics(q(), 90, "random").insight
+    assert random.basis == "random"
+    assert total.buffer_mw is not None
+    assert random.buffer_mw is not None
+    assert random.buffer_mw < total.buffer_mw
+
+
+def test_diagnostics_include_level_views(service: AnalysisService) -> None:
+    d = service.bias_diagnostics(q())
+    assert [b.label for b in d.by_actual_level] == ["0-5 GW", "5-10 GW", "10-15 GW", "15-30 GW"]
+    assert len(d.hindcast_by_level) == len(d.hindcast_by_actual_level) == 4

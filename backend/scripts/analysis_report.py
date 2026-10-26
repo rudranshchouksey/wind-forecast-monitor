@@ -23,7 +23,7 @@ def mw(v: float | None) -> str:
     return "n/a" if v is None else f"{v:,.0f}"
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0915 (a linear report; splitting adds nothing)
     s = get_settings()
     svc = AnalysisService(WindRepository(s.database_path, read_only=True), s)
     first, last = s.delivery_from, s.delivery_to
@@ -52,6 +52,13 @@ def main() -> None:
             f"P{p}: buffer {mw(b.buffer_mw)} = offset {mw(b.offset_mw)} + random "
             f"{mw(b.random_component_mw)}; coverage {b.achieved_coverage:.1%}"
         )
+
+    rnd = buffer_recommendation(errors, 90, "random")
+    print(
+        f"random-only P90: buffer {mw(rnd.buffer_mw)}; covers {rnd.achieved_coverage:.1%} of "
+        f"de-biased hours, {rnd.coverage_vs_fuelhh:.1%} vs FUELHH; worst 1% "
+        f"{mw(rnd.worst_1pct_mw)}"
+    )
 
     print("\n## Out-of-sample: size on 2-16 Jan, test on 17 Jan-1 Feb")
     train = svc.evaluate(AnalysisQuery(first, date(2026, 1, 16), "cutoff", time(9, 20)))
@@ -107,12 +114,33 @@ def main() -> None:
             f"forecast {bucket.label}: n {bucket.n} bias {mw(bucket.bias_mw)} mean actual/forecast "
             f"{bucket.mean_ratio:.3f}"
         )
+    for name, buckets in (
+        ("hindcast by WINDFOR level", diag.hindcast_by_level),
+        ("hindcast by actual level", diag.hindcast_by_actual_level),
+        ("cutoff by actual level", diag.by_actual_level),
+    ):
+        print(f"{name}: " + ", ".join(f"{b.label} {mw(b.bias_mw)} (n {b.n})" for b in buckets))
     frame = svc.evaluate(q).frame
     slope, intercept = np.polyfit(frame["forecast_mw"], frame["actual_mw"], 1)
     corr = np.corrcoef(frame["forecast_mw"], frame["actual_mw"])[0, 1]
     print(f"OLS actual = {intercept:,.0f} + {slope:.3f} * forecast; corr {corr:.3f}")
     debiased = frame["error_mw"] - frame["error_mw"].mean()
     print(f"MAE after removing mean offset: {mw(float(np.abs(debiased).mean()))}")
+
+    print("\n## Rolling bias correction (cutoff 09:20)")
+    c = svc.correction(q)
+    print(
+        f"days corrected {c.days_corrected}/{c.days_total}, hours {c.raw.n}, "
+        f"window {c.window_days} days"
+    )
+    print(
+        f"MAE {mw(c.raw.mae_mw)} -> {mw(c.corrected.mae_mw)}; RMSE {mw(c.raw.rmse_mw)} -> "
+        f"{mw(c.corrected.rmse_mw)}; bias {mw(c.raw.bias_mw)} -> {mw(c.corrected.bias_mw)}"
+    )
+    print(
+        f"corrected |e| P90 {mw(c.corrected.abs_p90_mw)}; "
+        f"shortfall share {c.corrected.shortfall.share:.1%}"
+    )
 
 
 if __name__ == "__main__":

@@ -2,7 +2,8 @@
 
     python -m app.ingest --from 2026-01-02 --to 2026-02-01 [--db data/wind.sqlite]
 
-Dates are delivery days (Europe/London, inclusive). Without arguments the configured range is used.
+Dates are delivery days (Europe/London, inclusive). Without arguments the configured range is used,
+starting ``correction_window_days + 1`` days early so the rolling bias correction has history.
 Running it again is safe: rows are upserted on their natural keys.
 """
 
@@ -27,7 +28,7 @@ def parse_args(argv: Sequence[str] | None, settings: Settings) -> argparse.Names
         prog="python -m app.ingest", description="Fetch Elexon wind data into SQLite."
     )
     parser.add_argument(
-        "--from", dest="first", type=date.fromisoformat, default=settings.delivery_from
+        "--from", dest="first", type=date.fromisoformat, default=settings.history_from
     )
     parser.add_argument("--to", dest="last", type=date.fromisoformat, default=settings.delivery_to)
     parser.add_argument("--db", type=Path, default=settings.database_path)

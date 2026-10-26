@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     alignment: Alignment = "hour_mean"
     mape_min_actual_mw: float = Field(default=1000.0, ge=0)
     default_percentile: float = Field(default=90.0, ge=50, le=99.9)
+    # Bias correction: fit on this many complete past delivery days (D-8 .. D-2 for 7).
+    correction_window_days: int = Field(default=7, ge=3, le=28)
 
     # API
     cors_origins: list[str] = ["http://localhost:5173"]
@@ -51,6 +53,11 @@ class Settings(BaseSettings):
     refresh_token: SecretStr | None = None
     frontend_dist: Path | None = None
     log_level: str = "INFO"
+
+    @property
+    def history_from(self) -> date:
+        """First day stored: enough history before delivery_from for the bias-correction window."""
+        return self.delivery_from - timedelta(days=self.correction_window_days + 1)
 
     @model_validator(mode="after")
     def _range_ordered(self) -> Settings:

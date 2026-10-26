@@ -1,7 +1,7 @@
 # Developer tasks. Requires uv (https://docs.astral.sh/uv/) and Node 22.
 .PHONY: help install dev dev-api dev-web ingest test test-api test-web lint format typecheck build docker-build docker-up requirements clean
 
-FROM ?= 2026-01-02
+FROM ?= 2025-12-25
 TO   ?= 2026-02-01
 
 help:            ## List targets
