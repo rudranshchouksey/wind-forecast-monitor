@@ -54,6 +54,21 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
+  it("says the backend can't be reached when the dev proxy answers 500, then recovers", async () => {
+    let backendUp = false;
+    const healthy = mockApi();
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) =>
+      backendUp ? healthy(input) : Promise.resolve(new Response(null, { status: 500 })),
+    );
+    renderApp();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Can't reach the API. Is the backend running on :8000?");
+    expect(alert).not.toHaveTextContent("Request failed (500)");
+    backendUp = true;
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/plan on 4,098 MW less wind/)).toBeInTheDocument();
+  });
+
   it("refetches metrics when the cutoff changes", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
     renderApp();

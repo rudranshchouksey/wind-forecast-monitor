@@ -23,13 +23,33 @@ export interface AnalysisParams {
   horizonH: number;
 }
 
+export const UNREACHABLE_MESSAGE =
+  "Can't reach the API. Is the backend running on :8000? See README › Quick start.";
+
+/** Statuses a dev proxy or gateway returns when nothing answers behind it. */
+const GATEWAY_STATUSES = new Set([500, 502, 503, 504]);
+
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  /** No API answered: a network failure, or a gateway error without a problem+json body. */
+  readonly unreachable: boolean;
+  /** The problem+json title, when the API sent one. */
+  readonly title: string | undefined;
+  constructor(
+    status: number,
+    message: string,
+    options: { unreachable?: boolean; title?: string } = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.unreachable = options.unreachable ?? false;
+    this.title = options.title;
   }
+}
+
+export function isUnreachable(error: unknown): boolean {
+  return error instanceof ApiError && error.unreachable;
 }
 
 type Query = Record<string, string | number | undefined>;
@@ -46,20 +66,40 @@ export function toQuery(p: AnalysisParams, extra: Query = {}): string {
   return q.toString();
 }
 
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    signal,
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`;
-    try {
-      const body = (await res.json()) as Partial<ProblemDetail>;
-      message = body.detail ?? body.title ?? message;
-    } catch {
-      /* non-JSON error body */
+/** The problem+json body of an API error, or null if the body isn't one (e.g. a proxy's empty 500). */
+async function readProblem(res: Response): Promise<Partial<ProblemDetail> | null> {
+  try {
+    const body = (await res.json()) as unknown;
+    if (body && typeof body === "object" && ("title" in body || "detail" in body)) {
+      return body as Partial<ProblemDetail>;
     }
-    throw new ApiError(res.status, message);
+  } catch {
+    /* non-JSON error body */
+  }
+  return null;
+}
+
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      signal,
+      headers: { Accept: "application/json" },
+    });
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    throw new ApiError(0, UNREACHABLE_MESSAGE, { unreachable: true });
+  }
+  if (!res.ok) {
+    const problem = await readProblem(res);
+    if (problem) {
+      const message = problem.detail ?? problem.title ?? `Request failed (${res.status})`;
+      throw new ApiError(res.status, message, { title: problem.title });
+    }
+    if (GATEWAY_STATUSES.has(res.status)) {
+      throw new ApiError(res.status, UNREACHABLE_MESSAGE, { unreachable: true });
+    }
+    throw new ApiError(res.status, `Request failed (${res.status})`);
   }
   return (await res.json()) as T;
 }

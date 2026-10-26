@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AnalysisParams } from "../api/client";
+import { ApiError, UNREACHABLE_MESSAGE, type AnalysisParams } from "../api/client";
 import type { BufferBasis } from "../api/types";
 import { bufferLineLabel, buildTiles } from "../lib/kpis";
 import { bias, correction, meta, metrics } from "../test/fixtures";
@@ -11,6 +11,7 @@ import { Controls } from "./Controls";
 import { BiasNote, CorrectionPanel } from "./Diagnostics";
 import { InsightCard } from "./InsightCard";
 import { KpiTiles } from "./KpiTiles";
+import { ErrorState } from "./states";
 
 const params: AnalysisParams = {
   from: "2026-01-02",
@@ -282,5 +283,68 @@ describe("ChartCard", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("boom");
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalled();
+  });
+});
+
+describe("ErrorState", () => {
+  it("explains an unreachable backend and retries automatically with backoff", () => {
+    vi.useFakeTimers();
+    try {
+      const retry = vi.fn();
+      const first = new ApiError(500, UNREACHABLE_MESSAGE, { unreachable: true });
+      const { rerender } = render(<ErrorState error={first} onRetry={retry} />);
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("Can't reach the API. Is the backend running on :8000?");
+      expect(alert).not.toHaveTextContent("Request failed");
+      expect(alert).toHaveTextContent("Retrying automatically in 2 s");
+      expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(retry).toHaveBeenCalledTimes(1);
+      expect(alert).toHaveTextContent("Retrying…");
+
+      // The retry failed too: a new error object arrives and the next wait is longer.
+      rerender(
+        <ErrorState
+          error={new ApiError(0, UNREACHABLE_MESSAGE, { unreachable: true })}
+          onRetry={retry}
+        />,
+      );
+      expect(alert).toHaveTextContent("Retrying automatically in 4 s");
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(retry).toHaveBeenCalledTimes(1);
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(retry).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows a real API error's title and detail without auto-retrying", () => {
+    vi.useFakeTimers();
+    try {
+      const retry = vi.fn();
+      const err = new ApiError(400, "dates must be within the snapshot", { title: "Bad Request" });
+      render(<ErrorState error={err} onRetry={retry} />);
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent("Bad Request (400)");
+      expect(alert).toHaveTextContent("dates must be within the snapshot");
+      expect(alert).not.toHaveTextContent("Can't reach the API");
+      expect(alert).not.toHaveTextContent("Retrying");
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(retry).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(retry).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
