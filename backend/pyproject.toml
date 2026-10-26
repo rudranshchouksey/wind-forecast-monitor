@@ -58,6 +58,11 @@ pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-q --strict-markers"
+filterwarnings = [
+    "error",
+    # starlette's TestClient still runs on httpx; harmless for tests.
+    "ignore:Using `httpx` with `starlette.testclient`",
+]
 
 [tool.coverage.run]
 source = ["app"]
