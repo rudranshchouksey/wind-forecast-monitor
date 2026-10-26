@@ -1,5 +1,5 @@
 # Developer tasks. Requires uv (https://docs.astral.sh/uv/) and Node 22.
-.PHONY: help install dev dev-api dev-web ingest test test-api test-web lint format typecheck build docker-build docker-up requirements clean
+.PHONY: help install dev dev-api dev-web ingest smoke test test-api test-web lint format typecheck build docker-build docker-up requirements clean
 
 FROM ?= 2025-12-25
 TO   ?= 2026-02-01
@@ -15,7 +15,7 @@ dev:             ## Run API (:8000) and Vite dev server (:5173) together
 	$(MAKE) -j2 dev-api dev-web
 
 dev-api:
-	cd backend && uv run uvicorn app.main:app --reload --port 8000
+	cd backend && uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 dev-web:
 	cd frontend && npm run dev
@@ -57,3 +57,6 @@ requirements:    ## Regenerate requirements.txt (Vercel) from uv.lock
 
 clean:
 	rm -rf frontend/dist frontend/coverage backend/.pytest_cache backend/.mypy_cache backend/.ruff_cache backend/htmlcov backend/.coverage
+
+smoke:           ## Hit every endpoint of a running app (BASE=http://localhost:8000)
+	bash scripts/smoke.sh $(or $(BASE),http://localhost:8000)

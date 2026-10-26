@@ -80,8 +80,32 @@ jobs:
         run: |
           docker run -d --name app -p 8000:8000 wind-forecast-monitor:ci
           for i in $(seq 1 30); do curl -fsS localhost:8000/api/v1/health && break; sleep 1; done
-          curl -fsS "localhost:8000/api/v1/metrics" | python3 -c "import json,sys; m=json.load(sys.stdin); assert m['metrics']['n'] > 0, m"
-          curl -fsS localhost:8000/ | grep -q "GB Wind Forecast Monitor"
+          bash scripts/smoke.sh http://localhost:8000
           docker inspect --format '{{.Config.User}}' app | grep -q app
       - if: always()
         run: docker logs app || true
+
+  dev:
+    name: Fresh-clone dev setup (make install + make dev)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.5"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: make install
+      - name: make dev, then hit every endpoint through the Vite proxy
+        run: |
+          make dev > dev.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS localhost:5173/api/v1/health > /dev/null && break; sleep 1; done
+          bash scripts/smoke.sh http://localhost:5173
+      - if: always()
+        run: cat dev.log || true
