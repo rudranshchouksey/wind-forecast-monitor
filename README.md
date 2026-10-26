@@ -47,8 +47,9 @@ make test           # pytest + vitest
 make lint           # ruff, mypy --strict, eslint, prettier, tsc
 uvx pre-commit install   # run the same checks on every commit (from the repo root)
 ```
-No `make` (e.g. Windows)? Each target is a one-liner in the [Makefile](Makefile), for example
-`cd backend && uv run uvicorn app.main:app --reload` and `cd frontend && npm run dev`.
+No `make` (e.g. Windows)? Run `powershell -ExecutionPolicy Bypass -File .\dev.ps1`, which starts the API
+(new window, :8000) and then Vite (:5173). Each Makefile target is also a one-liner you can run by hand.
+If Vite logs `http proxy error ... ECONNREFUSED`, the API isn't running on port 8000.
 
 Configuration is via `APP_*` environment variables; see [.env.example](.env.example). Nothing is secret.
 The optional `APP_REFRESH_TOKEN` enables `POST /api/v1/admin/refresh` on writable hosts.
