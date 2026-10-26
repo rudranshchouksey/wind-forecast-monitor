@@ -13,7 +13,7 @@ flowchart LR
         C[clients/elexon.py<br/>async httpx, chunks, retries]
         I[services/ingestion.py<br/>dedupe + quality report]
         R[(repositories/sqlite.py<br/>data/wind.sqlite)]
-        S[services/<br/>selection · alignment · metrics · insight · diagnostics]
+        S[services/<br/>selection · alignment · metrics · insight · diagnostics · correction]
         A[services/analysis.py<br/>in-memory dataset + LRU cache]
         API[api/v1 routers<br/>validation · problem+json · Cache-Control]
     end
@@ -41,8 +41,8 @@ reads only the SQLite snapshot, so the deployed app never depends on Elexon bein
 | `services/` | pure domain logic over pandas frames; no I/O except `analysis.py` (repo) and `ingestion.py` (client + repo) | models, core |
 | `api/` | FastAPI routers, dependencies, query validation, error mapping | services, models |
 
-Domain functions (`selection`, `alignment`, `metrics`, `insight`, `diagnostics`) are pure and take frames
-or arrays. That is why they can be tested with hand-calculated fixtures and a brute-force reference.
+Domain functions (`selection`, `alignment`, `metrics`, `insight`, `diagnostics`, `correction`) are pure
+and take frames or arrays. That is why they can be tested with hand-calculated fixtures and a brute-force reference.
 
 ## Request flow
 
@@ -66,6 +66,13 @@ selected   = the eligible row with the greatest publish_time, per target
 ```
 `decision_time` is `cutoff(delivery_day(target))` in cutoff mode and `target − h` in horizon mode.
 It is returned with every row, so the API response itself proves `publish_time ≤ decision_time`.
+
+## Rolling bias correction (services/correction.py)
+
+For delivery day D: OLS `actual ≈ a·forecast + b` on the cutoff-mode rows of complete days D-8 … D-2,
+then applied to D's cutoff forecast. The service evaluates cutoff mode over `history_from … to`
+internally (`_cached`, without range validation), applies the correction, and returns only the queried
+days. See [ADR 0005](adr/0005-rolling-bias-correction.md).
 
 ## Data model
 

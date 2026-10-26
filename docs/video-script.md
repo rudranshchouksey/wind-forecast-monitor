@@ -27,9 +27,10 @@ trade on Nord Pool, switch the preset to 09:50. Nothing published after the cuto
 rule is proven by automated tests.
 
 ### 1:30 Demo walkthrough (1 min 30 s)
-**[Screen: KPI tiles → main chart; drag the brush to 10–13 Jan]**
+**[Screen: KPI tiles; hover the "i" on "Worst 1% of hours" → main chart; drag the brush to 10–13 Jan]**
 
-Across January, the forecast missed by about **2,000 megawatts** on a typical hour. The main chart
+Across January, the forecast missed by about **2,000 megawatts** on a typical hour, and in the worst
+1 % of hours by more than 6,200. Every tile has a precise definition one tap away. The main chart
 shows why. Orange is the forecast you had, blue is what was delivered. The orange line sits above the blue
 almost all month. Zoom into 11 and 12 January: the forecast was too high in every hour, by about
 4.8 gigawatts on average.
@@ -51,12 +52,17 @@ than the day-ahead forecast.** For 95 % cover it's about 5,300. You choose the c
 We tested it the honest way: we sized the buffer on the first half of January and applied it to the second
 half. It covered **90.6 %** of hours, which matches the target.
 
-**[Screen: expand "Is the bias forecast error?"]**
+**[Screen: expand "Is the bias forecast error?"; then flip "Buffer basis" to "Random error only"]**
 One point we deliberately don't gloss over: about 1.5 gigawatts of that buffer is a **persistent
 offset** between Elexon's forecast and its metered outturn. It's there even for hours that had already
-happened. Elexon's documentation doesn't explain it, so the dashboard flags it. In practice: if your
-position settles against metered wind like this, hold the full buffer. If not, the random component,
-about 2,350 MW, is the number to use.
+happened, and it grows with wind level, from half a gigawatt in light wind to 2.7 in strong wind.
+Curtailment or a difference in farm coverage could explain it. Neither is confirmed, and we say so. This
+toggle shows the buffer without the offset, 2,350 MW, and warns that against metered wind it would have
+covered only 68 % of hours.
+
+**[Screen: tick "Show on main chart" in the bias-corrected panel]**
+A simple correction learned from the previous week, using past data only, cuts the typical miss by
+**23 %**, from 2,039 to 1,568 MW.
 
 ### 4:15 How you'd use it (45 s)
 **[Screen: Export CSV, explainer panel]**
@@ -104,6 +110,11 @@ are checked against a brute-force reference implementation, asserting no row eve
 **[Screen: ADR 0002]** The default moved from 11:00 to 09:20 because the 11:00 cutoff picks the 09:30
 forecast, which is after EPEX's gate. That's look-ahead.
 
+**[Screen: services/correction.py + tests/unit/test_correction.py]** The same discipline applies to the
+bias correction. Day D is fitted only on complete days D-8 to D-2. The test perturbs every actual
+from D-1 onward and every later forecast, and asserts that D's output is bit-for-bit identical. A
+control test proves it would catch the use of D-2.
+
 ### 2:40 Code tour order (40 s)
 **[Screen: file tree]**
 
@@ -115,11 +126,11 @@ LRU cache) → `api/deps.py` and `api/v1/analysis.py` → `frontend/src/api/hook
 ### 3:20 Testing and CI (50 s)
 **[Screen: pytest output with coverage, then .github/workflows/ci.yml]**
 
-The backend has 126 tests at 99 % coverage, with a CI gate of 85 % on services. Metrics are tested against
+The backend has 149 tests at 99 % coverage, with a CI gate of 85 % on services. Metrics are tested against
 hand-calculated fixtures. A synthetic dataset where the error is exactly `500 + 10 × horizon` lets the service
 tests assert exact values end to end. API tests cover validation, problem+json errors and refresh with
-Elexon mocked via respx. The frontend has Vitest and Testing Library tests for tiles, controls, states and
-the app with a mocked API. CI runs ruff, mypy strict, eslint strict, prettier, tsc and both test suites, builds
+Elexon mocked via respx. The frontend has 45 Vitest and Testing Library tests for tiles and tooltips, controls, diagnostics,
+states and the app with a mocked API. CI runs ruff, mypy strict, eslint strict, prettier, tsc and both test suites, builds
 the Docker image and smoke-tests it.
 
 ### 4:10 Trade-offs and next steps (50 s)
@@ -130,5 +141,5 @@ becomes worthwhile with years of data or multiple writers. Vercel is free and CD
 read-only filesystem, so refresh means redeploying; the same Docker image runs anywhere writable. The
 bundle size was measured early at 116 MB against a 250 MB limit.
 
-Next steps: test the curtailment hypothesis with bid-offer acceptance data, extend to a full year,
-size buffers conditionally on forecast level and hour, and generate the TypeScript types from OpenAPI.
+Next steps: test the two offset hypotheses with other BMRS data, extend to a full year, size buffers
+conditionally on forecast level and hour, and generate the TypeScript types from OpenAPI.

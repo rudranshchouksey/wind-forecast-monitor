@@ -88,6 +88,12 @@ Reasoning:
   The difference is below 1 %, so the conclusions do not depend on this choice. A config option
   (`APP_ALIGNMENT=hour_mean|point`) is kept so that a reviewer can verify this.
 
+## History days
+
+Ingestion stores `APP_CORRECTION_WINDOW_DAYS + 1` (default 8) delivery days before `APP_DELIVERY_FROM`
+(from 25 Dec 2025). Only the rolling bias correction uses them. Re-ingesting them found no revisions to
+the existing January rows (0 actuals or forecasts revised).
+
 ## Bias observation → investigated
 
 Forecasts run about **1.7 GW above** FUELHH on average. The investigation, using only these two datasets and

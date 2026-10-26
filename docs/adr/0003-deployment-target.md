@@ -5,7 +5,7 @@
 
 ## Context
 Reviewers need a public link that loads quickly and costs nothing to keep running. The API is
-read-only over a 3.4 MB SQLite snapshot.
+read-only over a 4.3 MB SQLite snapshot.
 
 ## Decision
 **Vercel**:

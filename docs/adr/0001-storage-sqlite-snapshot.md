@@ -5,7 +5,8 @@
 
 ## Context
 The app must serve quickly and keep working when Elexon is down. The January 2026 dataset is small:
-1,488 half-hourly actuals and 20,221 forecast rows from 277 WINDFOR publishes, about 3.4 MB.
+1,872 half-hourly actuals and 24,893 forecast rows from 341 WINDFOR publishes (January plus 8 history
+days for the bias correction), about 4.3 MB.
 Analysts need to change the cutoff and the lead time freely, so selection must not be baked in at ingest time.
 
 ## Decision
@@ -24,7 +25,7 @@ Analysts need to change the cutoff and the lead time freely, so selection must n
 - **Pre-computing results**: fast, but it fixes the cutoff and the horizons, which is exactly what users want to vary.
 
 ## Consequences
-- Zero runtime dependency on Elexon; a cold start reads 3 MB.
+- Zero runtime dependency on Elexon; a cold start reads ~4 MB.
 - Refreshing the deployed demo means re-running ingest and redeploying (or `POST /admin/refresh`
   on a writable host). That is acceptable for a historical analysis.
 - Upserts on natural keys make ingestion idempotent; revised actuals (a later `publishTime`) win.

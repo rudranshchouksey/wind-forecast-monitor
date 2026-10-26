@@ -20,20 +20,23 @@ a buffer recommendation for purchasing.
 |---|---|
 | Mean absolute error | **2,039 MW** (RMSE 2,505 MW, MAPE 22 %) |
 | Bias | **+1,748 MW**: forecasts ran high; wind fell short in **85 %** of hours |
-| P90 shortfall | 4,377 MW |
+| Worst 1 % of hours | 6,261 MW (P99 of error, same hours as the buffer) |
 | Buffer for 90 % cover | **4,098 MW** (= 1,748 MW persistent offset + 2,350 MW random) |
 | Out-of-sample | buffer sized on 2–16 Jan covered **90.6 %** of hours on 17 Jan – 1 Feb |
+| Rolling bias correction | MAE 2,039 → **1,568 MW (−23 %)**, fitted on past days only (D-8 … D-2) |
 
 About 1.5 GW of the bias is a **systematic offset between WINDFOR and FUELHH**. It persists even in WINDFOR's values for
-hours that had already ended. Elexon's docs don't explain it, so the dashboard flags it as a caveat
-rather than presenting it as forecasting error. Full write-up: [docs/analysis.md](docs/analysis.md).
+hours that had already ended, and it grows with wind level (+0.5 GW at 0–5 GW, +2.7 GW above 15 GW).
+Curtailment at high wind, or capacity counted in WINDFOR but not in FUELHH, could explain it, but
+neither is confirmed and Elexon's docs don't say. The dashboard therefore flags it as a caveat, and the
+buffer can be shown with or without the offset. Full write-up: [docs/analysis.md](docs/analysis.md).
 
 ## Quick start
 
 ### Docker (everything in one container)
 ```bash
 docker compose up --build        # http://localhost:8000  (API docs: /api/v1/docs)
-docker compose run --rm ingest --from 2026-01-02 --to 2026-02-01   # optional: re-fetch from Elexon
+docker compose run --rm ingest   # optional: re-fetch from Elexon (defaults to 25 Dec 2025 – 1 Feb 2026)
 ```
 The image ships with the January snapshot, so it works offline.
 
@@ -42,7 +45,7 @@ Requires [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 itself) and N
 ```bash
 make install        # uv sync + npm ci
 make dev            # API on :8000 (reload) + Vite on :5173 (proxies /api)
-make ingest FROM=2026-01-02 TO=2026-02-01
+make ingest FROM=2025-12-25 TO=2026-02-01   # 8 history days feed the bias correction
 make test           # pytest + vitest
 make lint           # ruff, mypy --strict, eslint, prettier, tsc
 uvx pre-commit install   # run the same checks on every commit (from the repo root)
@@ -64,12 +67,13 @@ OpenAPI: `/api/v1/openapi.json`, interactive docs at `/api/v1/docs`. Common quer
 |---|---|
 | `GET /api/v1/health` | status + snapshot extent + last ingest |
 | `GET /api/v1/meta` | data range, cutoff presets, defaults |
-| `GET /api/v1/forecast-vs-actual` | hourly rows (actual, selected forecast, publish time, lead time); `format=csv` |
-| `GET /api/v1/metrics` | MAE, RMSE, bias, MAPE, percentiles, shortfall/surplus split, buffer insight, coverage |
+| `GET /api/v1/forecast-vs-actual` | hourly rows (actual, selected forecast, bias-corrected forecast, publish time, lead time); `format=csv` |
+| `GET /api/v1/metrics` | MAE, RMSE, bias, MAPE, percentiles, shortfall/surplus split, buffer insight (`buffer_basis=total\|random`), worst 1 %, coverage |
+| `GET /api/v1/metrics/correction` | raw vs rolling bias-corrected accuracy (cutoff mode only), latest fit |
 | `GET /api/v1/metrics/by-horizon` | metrics per lead time (`horizons=1,4,12,24`) + the cutoff reference point |
 | `GET /api/v1/metrics/by-hour` / `by-day` | breakdowns by London hour / delivery day |
 | `GET /api/v1/error-distribution` | histogram (`bin_mw`) + quantiles |
-| `GET /api/v1/diagnostics/bias` | tests for whether the bias is forecast error or an offset |
+| `GET /api/v1/diagnostics/bias` | tests for whether the bias is forecast error or an offset, incl. by-level views |
 | `POST /api/v1/admin/refresh` | re-ingest (token-protected; disabled on read-only deploys) |
 
 Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) `application/problem+json` (400, 404, 422, 502, 503).
@@ -97,17 +101,18 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 | `backend/app/services/alignment.py` | half-hourly actuals → hourly grid |
 | `backend/app/services/metrics.py` | MAE, RMSE, bias, MAPE, percentiles, directional split, histogram |
 | `backend/app/services/insight.py` | buffer recommendation + plain-language takeaway + caveat |
-| `backend/app/services/diagnostics.py` | bias investigation (hindcast rows, by forecast level) |
+| `backend/app/services/diagnostics.py` | bias investigation (hindcast rows; by forecast and actual level) |
+| `backend/app/services/correction.py` | rolling linear bias correction on complete past days (no look-ahead) |
 | `backend/app/services/analysis.py` | orchestration, coverage, in-memory cache |
 | `backend/app/services/ingestion.py`, `quality.py` | fetch → dedupe → quality report → store |
 | `backend/app/api/` | routers (`v1/analysis.py`, `v1/system.py`), dependencies, error handlers |
 | `backend/app/ingest.py` | ingestion CLI |
 | `backend/app/main.py` | app factory (also serves the built frontend when present) |
-| `backend/data/wind.sqlite` | bundled January 2026 snapshot (3.4 MB) |
+| `backend/data/wind.sqlite` | bundled January 2026 snapshot (4.3 MB) |
 | `backend/scripts/analysis_report.py` | prints every number in `docs/analysis.md` |
 | `backend/tests/` | unit (selection, metrics, client, repo, ingestion, service) + API tests |
 | `frontend/src/api/` | typed client, response types, TanStack Query hooks |
-| `frontend/src/components/` | KPI tiles, insight, controls, charts, chart card (table view, states) |
+| `frontend/src/components/` | KPI tiles with definition tooltips, insight, controls, charts, diagnostics, correction panel, chart card (table view, states) |
 | `frontend/src/lib/` | formatting (Europe/London), ticks, theme, defaults |
 | `api/index.py`, `vercel.json`, `requirements.txt` | Vercel function entrypoint and config |
 | `Dockerfile`, `docker-compose.yml`, `heroku.yml` | container build (multi-stage, non-root, healthcheck) |
@@ -129,7 +134,10 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 5. **Metrics.** Error = forecast − actual (positive = shortfall). MAE, RMSE, bias, MAPE (actual ≥ 1 GW
    only), P50/P90/P99 of |error|, and percentiles split into shortfall and surplus.
 6. **Buffer.** P-th percentile of the signed error (clipped at 0), split into the persistent offset (mean)
-   and the random part. Self-checked by applying it back to the data and out of sample.
+   and the random part. "Random error only" mode uses the de-biased error instead and reports its
+   (lower) coverage against FUELHH. Self-checked by applying it back to the data and out of sample.
+7. **Bias correction (optional).** For day D, OLS `actual ≈ a·forecast + b` on complete days D-8 … D-2,
+   i.e. only actuals known at the D-1 cutoff. Proven by perturbation tests. [ADR 0005](docs/adr/0005-rolling-bias-correction.md)
 
 ## Assumptions
 - A forecast is usable from its `publishTime`.
@@ -144,7 +152,9 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 - The Vercel deploy is read-only; refreshing data means re-ingesting and redeploying.
 
 ## Future work
-- Test the curtailment hypothesis with BMRS bid-offer acceptances for wind BM units (kept out of scope).
+- Test the two offset hypotheses: curtailment (BMRS bid-offer acceptances for wind BM units) and
+  capacity coverage (unit-level generation). Both are kept out of scope by the brief.
+- Level- and hour-conditional bias correction, and evaluating buffers on the corrected forecast.
 - Extend to 12+ months and report seasonal / regime-conditional buffers (e.g. by forecast level).
 - Conditional buffers: size by forecast level and hour (the error is heteroscedastic).
 - Scheduled refresh on a writable host (Cloud Run / Fly.io + object storage) and OpenAPI-generated TS types.
