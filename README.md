@@ -219,17 +219,24 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 
 ## Deploy
 
-Target: **Vercel** ([ADR 0003](docs/adr/0003-deployment-target.md)). The function bundle was measured at 116 MB
-unzipped (limit 250 MB). You run these commands yourself; no credentials are stored in the repo.
+Target: **Vercel** ([ADR 0003](docs/adr/0003-deployment-target.md)). You run these commands yourself;
+no credentials are stored in the repo. From the repo root (PowerShell or bash):
 
 ```bash
-npm i -g vercel                 # or: npx vercel ...
-vercel login                    # interactive, in your browser
-vercel link                     # create/link a project (root = repo root, no framework preset)
-vercel --prod                   # builds frontend, bundles api/index.py + backend/{app,data}
+npx vercel@65.3.1 login           # interactive, in your browser
+npx vercel@65.3.1 link            # "Set up and deploy?" yes; new project; directory ./ ; keep the
+                                  # detected settings (vercel.json overrides install/build/output)
+npx vercel@65.3.1 --prod          # builds the frontend, bundles api/index.py + backend/{app,data}
+bash scripts/smoke.sh https://<project>.vercel.app   # every endpoint + the dashboard must be 200
 ```
-Then check `https://<project>.vercel.app/api/v1/health` and paste the URL into "Live app" above.
-After re-ingesting data: `make requirements` (if deps changed), commit, then `vercel --prod`.
+The project must be public: open it in a private window. If Vercel asks you to log in, turn off
+*Settings → Deployment Protection → Vercel Authentication* for production.
+
+**Checked locally:** `npx vercel@65.3.1 build --prod` succeeds (it needs `uv` on `PATH`). The Python
+function is **116.9 MB unzipped against the 250 MB limit**: pandas 43 MB, numpy 54 MB, the
+`wind.sqlite` snapshot 4.3 MB. Tests, docs and the frontend source are excluded, and the static
+dashboard is 3 MB. The function opens the snapshot read-only, so `POST /admin/refresh` is disabled there.
+After re-ingesting data: `make requirements` (only if dependencies changed), commit, then `vercel --prod`.
 
 Fallback (any container host, e.g. Heroku): `heroku stack:set container -a <app>` then
 `git push heroku main`. The image honours `$PORT`.
