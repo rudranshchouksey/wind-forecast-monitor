@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.coverage
+coverage/
+htmlcov/
+.env
+.vercel/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
