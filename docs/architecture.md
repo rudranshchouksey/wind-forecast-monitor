@@ -111,6 +111,6 @@ erDiagram
 ## Quality gates
 
 `ruff` (lint + format), `mypy --strict`, `pytest` (services coverage gate ≥ 85 %, currently 99 %),
-`eslint` (strict type-checked), `prettier`, `tsc --noEmit`, `vitest`, the Docker build plus a smoke test, and a
+`eslint` (strict type-checked), `prettier`, `tsc --noEmit`, `vitest`, the Docker build plus a smoke test of every endpoint, a fresh-checkout `make install` + `make dev` smoke test, and a
 drift check between `uv.lock` and `requirements.txt`. All run in `.github/workflows/ci.yml`; the same
 tools run locally via `make lint test` and pre-commit.

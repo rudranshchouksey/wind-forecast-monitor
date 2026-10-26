@@ -6,6 +6,7 @@ Elexon BMRS only. Forecast = WINDFOR, actual = FUELHH `WIND` averaged to hourly
 **shortfall** (less wind than planned for, so the buyer is short).
 
 Every number below is printed by `backend/scripts/analysis_report.py` from the bundled snapshot.
+Section 9 checks sample hours of that snapshot against the live Elexon API.
 
 ## 1. Headline: forecasts available at the D-1 09:20 cutoff
 
@@ -206,6 +207,31 @@ participants.
 3. **Add more cover overnight (03:00–05:00)** and on high-wind days, where both bias and spread are largest.
 4. **Don't wait for later forecasts to fix the bias.** Moving to a 1–4 h forecast cuts MAE by only
    15–17 % (2,039 → 1,691–1,730 MW), because most of the error is the offset.
+
+## 9. Data check against the live Elexon API
+
+Three hours were re-fetched straight from Elexon on 27 October 2026 and compared with what this app
+serves (`GET /forecast-vs-actual`, 09:20 cutoff), using `backend/scripts/spot_check.py`. The hours
+were chosen to cover low wind, a large over-forecast and an overnight high-wind hour.
+
+| Target hour (UTC) | Publish used | Our forecast (MW) | Elexon WINDFOR | Our actual (MW) | Elexon FUELHH, two half-hours → mean | Later publishes ≤ cutoff | Match |
+|---|---|---|---|---|---|---|---|
+| 08 Jan 06:00 | 07 Jan 07:30 | 4,894 | 4,894 | 1,878.0 | 2,009 + 1,747 → 1,878.0 | 0 | yes |
+| 12 Jan 17:00 | 11 Jan 07:30 | 18,235 | 18,235 | 14,804.0 | 14,749 + 14,859 → 14,804.0 | 0 | yes |
+| 27 Jan 03:00 | 26 Jan 07:30 | 20,043 | 20,043 | 17,228.5 | 17,331 + 17,126 → 17,228.5 | 0 | yes |
+
+All three match exactly:
+- **Forecast.** Each value equals the WINDFOR value in that publish for the target hour.
+- **Actual.** Each value equals the mean of FUELHH `WIND` for the half-hours starting at T and T+30 min.
+- **Selection.** Elexon has no WINDFOR publish after 07:30 and at or before 09:20 on D-1, so the
+  07:30 publish was the latest one available at the cutoff. The check is sensitive: widening the
+  window to 09:30 returns the 09:30 publish.
+
+Re-run it with:
+```
+cd backend
+uv run python scripts/spot_check.py --api http://localhost:8000 2026-01-08T06:00Z 2026-01-12T17:00Z 2026-01-27T03:00Z
+```
 
 ## Limitations
 - One month, one season (winter): wind regimes, curtailment patterns and the offset may differ in summer.

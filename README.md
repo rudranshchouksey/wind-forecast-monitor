@@ -9,10 +9,15 @@ a buffer recommendation for purchasing.
 
 ![Dashboard, light mode](docs/screenshots/dashboard-light.png)
 
-<details><summary>Dark mode</summary>
+<details><summary>Dark mode and 375 px mobile</summary>
 
 ![Dashboard, dark mode](docs/screenshots/dashboard-dark.png)
+
+<img src="docs/screenshots/dashboard-mobile.png" alt="Dashboard on a 375 px phone, light mode" width="300">
+<img src="docs/screenshots/dashboard-mobile-dark.png" alt="Dashboard on a 375 px phone, dark mode" width="300">
 </details>
+
+Screenshots are taken from the production build (Docker image) in headless Edge.
 
 ## Key findings (January 2026, D-1 09:20 cutoff)
 
@@ -164,7 +169,7 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 | `backend/app/ingest.py` | ingestion CLI |
 | `backend/app/main.py` | app factory (also serves the built frontend when present) |
 | `backend/data/wind.sqlite` | bundled January 2026 snapshot (4.3 MB) |
-| `backend/scripts/analysis_report.py` | prints every number in `docs/analysis.md` |
+| `backend/scripts/analysis_report.py`, `spot_check.py` | print every number in `docs/analysis.md`; re-check sample hours against live Elexon |
 | `backend/tests/` | unit (selection, metrics, client, repo, ingestion, service) + API tests |
 | `frontend/src/api/` | typed client, response types, TanStack Query hooks |
 | `frontend/src/components/` | KPI tiles with definition tooltips, insight, controls, charts, diagnostics, correction panel, chart card (table view, states) |
