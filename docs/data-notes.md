@@ -86,14 +86,21 @@ Reasoning:
   | point match (actual at :00 only) | 1,996 MW | 2,499 MW | +1,728 MW |
 
   The difference is below 1 %, so the conclusions do not depend on this choice. A config option
-  (`ALIGNMENT=hour_mean|point`) is kept so that a reviewer can verify this.
+  (`APP_ALIGNMENT=hour_mean|point`) is kept so that a reviewer can verify this.
 
-## Early observation
+## Bias observation → investigated
 
-Forecasts run about **1.7 GW above** metered wind output on average. A plausible explanation, not
-verified here because we deliberately use no other datasets, is that WINDFOR forecasts available
-wind generation while FUELHH records metered output *after* constraint curtailment. Whatever the
-cause, it is the error the trader is exposed to, and the analysis quantifies it rather than correcting it away.
+Forecasts run about **1.7 GW above** FUELHH on average. The investigation, using only these two datasets and
+Elexon's documentation, is in [analysis.md §3](analysis.md#3-is-the-bias-real-investigation). In short, about 1.5 GW of it is a
+systematic offset between the series. It is present even in WINDFOR's values for hours that had already ended.
+Elexon's documentation (both series cover "operationally metered" wind) does not explain it.
+
+## Publish times: documentation vs data
+
+The API spec lists WINDFOR publishes "up to 8 times a day at 03:30, 05:30, 08:30, 10:30, 12:30, 16:30,
+19:30 and 23:30". In January 2026, `publishTime` values are 02:30, 04:30, 07:30, 09:30, 11:30, 15:30,
+18:30 and 22:30 **UTC**, which is one hour earlier at every slot (London = UTC in January). We rely on the
+`publishTime` field itself, never on the documented schedule.
 
 ## Appendix: probe commands
 

@@ -42,3 +42,10 @@ participant that is look-ahead.
 - Tests cover the exact boundary (included at the cutoff, excluded one second later), the first and last
   hour of a day, the switch at midnight, spring and autumn DST days, the irregular 12:25 publish,
   and a randomised comparison against a brute-force reference implementation.
+- Gate-closure times change occasionally. Check them against the current exchange rulebooks
+  before using results operationally; the cutoff is a single setting.
+
+## Sources
+- Nord Pool, GB auction changes for Brexit: https://nordpoolgroup.com/en/message-center-container/newsroom/exchange-message-list/2020/q4/nord-pool-announces-gb-auction-changes-for-brexit
+- Nord Pool GB day-ahead market regulations: https://nordpoolgroup.com/49b336/globalassets/download-center/rules-and-regulations/day-ahead-market-regulations---gb-market.pdf
+- EPEX SPOT market data (GB day-ahead auction closure 10:20 CET): https://www.epexspot.com/en

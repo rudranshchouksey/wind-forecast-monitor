@@ -47,7 +47,7 @@ known-first-party = ["app", "tests"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests"]
+files = ["app", "tests", "scripts"]
 
 [[tool.mypy.overrides]]
 module = ["respx.*"]

@@ -1,6 +1,12 @@
 # Phase 1 plan
 
-Status: **proposal, awaiting approval.** The API findings behind it are in [data-notes.md](data-notes.md).
+Status: **approved with changes** (kept as the historical phase-1 proposal). The API findings are in [data-notes.md](data-notes.md).
+
+Changes made at approval:
+1. Default cutoff is **D-1 09:20 Europe/London** (earliest GB day-ahead gate closure), with 09:50 and 11:00 as presets ([ADR 0002](adr/0002-decision-cutoff.md)).
+2. Python 3.12 and dependencies are managed with **uv** (`pyproject.toml` + `uv.lock`), also in Docker and CI. Nothing is installed system-wide.
+3. The ~1.7 GW bias was **investigated before being presented** ([analysis.md §3](analysis.md#3-is-the-bias-real-investigation)), and the buffer carries a caveat.
+4. The Vercel bundle size was checked in phase 2: 116 MB unzipped against a 250 MB limit.
 
 ## 1. Scope
 
