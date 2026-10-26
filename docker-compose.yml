@@ -1,0 +1,25 @@
+# docker compose up          -> dashboard + API on http://localhost:8000
+# docker compose run --rm ingest --from 2026-01-02 --to 2026-02-01   -> refresh the data volume
+services:
+  app:
+    build: .
+    image: wind-forecast-monitor:local
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - wind-data:/app/backend/data
+    restart: unless-stopped
+
+  ingest:
+    image: wind-forecast-monitor:local
+    profiles: ["tools"]
+    entrypoint: ["python", "-m", "app.ingest"]
+    volumes:
+      - wind-data:/app/backend/data
+
+# Named volume: seeded from the image's bundled snapshot on first run, kept across restarts.
+volumes:
+  wind-data:

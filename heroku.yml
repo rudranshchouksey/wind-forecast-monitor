@@ -1,0 +1,4 @@
+# Fallback target (see docs/adr/0003-deployment-target.md): heroku stack:set container
+build:
+  docker:
+    web: Dockerfile
