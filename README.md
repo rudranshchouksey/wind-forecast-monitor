@@ -33,29 +33,84 @@ buffer can be shown with or without the offset. Full write-up: [docs/analysis.md
 
 ## Quick start
 
-### Docker (everything in one container)
-```bash
-docker compose up --build        # http://localhost:8000  (API docs: /api/v1/docs)
-docker compose run --rm ingest   # optional: re-fetch from Elexon (defaults to 25 Dec 2025 – 1 Feb 2026)
-```
-The image ships with the January snapshot, so it works offline.
+The app has two parts: the **API** (FastAPI, port 8000) and the **dashboard** (React). In Docker,
+one container serves both on **http://localhost:8000**. In local development, Vite serves the
+dashboard on **http://localhost:5173** and forwards `/api` to the API on port 8000.
 
-### Local development
-Requires [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 itself) and Node 22.
+Prerequisites: [Docker Desktop](https://www.docker.com/products/docker-desktop/) for (a). For (b)–(d),
+[uv](https://docs.astral.sh/uv/getting-started/installation/) (it installs Python 3.12 itself) and
+[Node 22+](https://nodejs.org/). The repo ships the January 2026 snapshot (`backend/data/wind.sqlite`),
+so nothing needs to be downloaded from Elexon to start.
+
+### Windows (PowerShell)
+
+**(a) Docker only**: dashboard and API in one container.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\dev.ps1 -Docker   # builds, starts, opens http://localhost:8000
+# or by hand:
+docker compose up --build                                    # then open http://localhost:8000
+docker compose down                                          # stop it (frees port 8000)
+```
+
+**(b) Local development with `dev.ps1`**: API with auto-reload plus Vite with hot reload.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\dev.ps1           # then open http://localhost:5173
+```
+It syncs dependencies, opens the API in a second window, waits up to 60 s for
+`/api/v1/health`, and only then starts Vite. It stops with a clear message if port 8000 is taken.
+
+**(c) The same thing in two terminals by hand**
+```powershell
+# terminal 1: API on http://127.0.0.1:8000
+cd backend; uv sync --frozen; uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# terminal 2: dashboard on http://localhost:5173
+cd frontend; npm ci; npm run dev
+```
+
+**(d) Re-ingest data from Elexon** (10–60 s; no API key needed)
+```powershell
+cd backend; uv run python -m app.ingest --from 2025-12-25 --to 2026-02-01   # local file backend\data\wind.sqlite
+docker compose run --rm ingest --from 2025-12-25 --to 2026-02-01           # the Docker volume instead
+```
+Restart the API afterwards, because it loads the snapshot once at start-up. The eight days before
+2 January feed the rolling bias correction.
+
+> **Port 8000: Docker *or* local dev, not both.** `docker compose up` publishes port 8000, so a
+> local `uvicorn` can't bind it. Your backend code edits then aren't picked up, and the dashboard at
+> :5173 talks to the container instead. `dev.ps1` detects this and stops. Fix: run
+> `docker compose down` and then start local dev, or keep Docker and use http://localhost:8000. Check
+> what holds the port with `docker ps` or
+> `Get-NetTCPConnection -LocalPort 8000 -State Listen | Select OwningProcess`.
+
+### macOS / Linux (make)
 ```bash
 make install        # uv sync + npm ci
 make dev            # API on :8000 (reload) + Vite on :5173 (proxies /api)
-make ingest FROM=2025-12-25 TO=2026-02-01   # 8 history days feed the bias correction
+make ingest FROM=2025-12-25 TO=2026-02-01
 make test           # pytest + vitest
 make lint           # ruff, mypy --strict, eslint, prettier, tsc
-uvx pre-commit install   # run the same checks on every commit (from the repo root)
+make smoke BASE=http://localhost:5173   # hit every endpoint of a running app
+docker compose up --build               # Docker, as in (a)
+uvx pre-commit install                  # run the checks on every commit
 ```
-No `make` (e.g. Windows)? Run `powershell -ExecutionPolicy Bypass -File .\dev.ps1`, which starts the API
-(new window, :8000) and then Vite (:5173). Each Makefile target is also a one-liner you can run by hand.
-If Vite logs `http proxy error ... ECONNREFUSED`, the API isn't running on port 8000.
+Each Makefile target is a one-liner you can also run by hand. CI runs `make install` and
+`make dev` on a fresh checkout and smoke-tests every endpoint through the Vite proxy.
 
 Configuration is via `APP_*` environment variables; see [.env.example](.env.example). Nothing is secret.
 The optional `APP_REFRESH_TOKEN` enables `POST /api/v1/admin/refresh` on writable hosts.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Dashboard says **"Can't reach the API. Is the backend running on :8000?"** (older builds: "Request failed (500)"). Vite logs `http proxy error ... ECONNREFUSED 127.0.0.1:8000` | Nothing is listening on port 8000, so the Vite proxy answers 500. Start the API: (b) or (c) above, or Docker (a) and open :8000 instead. The dashboard retries by itself, so it recovers once the API is up. A rebuild of the Docker image also leaves the port empty for a while. |
+| `dev.ps1`: "Docker app is running on :8000" | The compose container holds the port. `docker compose down`, or use http://localhost:8000. |
+| `dev.ps1`: "Port 8000 is in use by …", or uvicorn: `[Errno 10048] ... only one usage of each socket address` | Another process holds the port, often an old uvicorn window. Close it, or find it with `Get-NetTCPConnection -LocalPort 8000 -State Listen` and `Stop-Process -Id <PID>`. |
+| `dev.ps1`: "The API did not become healthy within 60 s" | Read the error in the API window. Usually it is a missing snapshot (next row) or a dependency problem; run `cd backend; uv sync --frozen`. |
+| API returns 503 "database not found" or "no data ingested" | `backend/data/wind.sqlite` is missing or empty, for example after deleting it. Re-ingest with (d), or restore it with `git checkout -- backend/data/wind.sqlite`. |
+| `ZoneInfoNotFoundError: 'No time zone found with key Europe/London'` | Windows has no system time-zone database, so Python needs the `tzdata` package. It is a declared dependency; run `cd backend; uv sync --frozen` and start the API with `uv run …`, not a global Python. |
+| `dev.ps1 cannot be loaded because running scripts is disabled` | Run it as `powershell -ExecutionPolicy Bypass -File .\dev.ps1`. That changes no system setting. |
+| `uv` not found right after installing it | Open a new terminal, or add `%USERPROFILE%\.local\bin` to `PATH`. |
 
 ## API
 
@@ -114,6 +169,8 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 | `frontend/src/api/` | typed client, response types, TanStack Query hooks |
 | `frontend/src/components/` | KPI tiles with definition tooltips, insight, controls, charts, diagnostics, correction panel, chart card (table view, states) |
 | `frontend/src/lib/` | formatting (Europe/London), ticks, theme, defaults |
+| `dev.ps1`, `Makefile` | Windows launcher (local dev or `-Docker`) and make targets for macOS/Linux |
+| `scripts/smoke.sh` | hits every endpoint of a running app (CI, Docker, Vercel) |
 | `api/index.py`, `vercel.json`, `requirements.txt` | Vercel function entrypoint and config |
 | `Dockerfile`, `docker-compose.yml`, `heroku.yml` | container build (multi-stage, non-root, healthcheck) |
 | `.github/workflows/ci.yml` | lint, type-check, test, build and smoke-test the image |

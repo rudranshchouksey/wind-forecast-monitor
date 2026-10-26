@@ -107,7 +107,7 @@ if ($owner) {
 }
 
 if (-not (Test-Path "$root\backend\data\wind.sqlite")) {
-    Fail ("backend\data\wind.sqlite is missing. Fetch it first (about a minute):`n" +
+    Fail ("backend\data\wind.sqlite is missing. Fetch it first (under a minute):`n" +
         "  cd backend; uv run python -m app.ingest")
 }
 
