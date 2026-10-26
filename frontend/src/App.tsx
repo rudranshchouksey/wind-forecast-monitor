@@ -6,12 +6,13 @@ import {
   useByDay,
   useByHorizon,
   useByHour,
+  useCorrection,
   useDistribution,
   useMeta,
   useMetrics,
   useSeries,
 } from "./api/hooks";
-import type { MetaResponse } from "./api/types";
+import type { BufferBasis, MetaResponse } from "./api/types";
 import {
   DayChart,
   GroupTable,
@@ -26,7 +27,8 @@ import {
 import { ChartCard } from "./components/ChartCard";
 import { Controls } from "./components/Controls";
 import { Explainer } from "./components/Explainer";
-import { BiasNote, InsightCard } from "./components/InsightCard";
+import { BiasNote, CorrectionPanel } from "./components/Diagnostics";
+import { InsightCard } from "./components/InsightCard";
 import { KpiTiles } from "./components/KpiTiles";
 import { MainChart, MainLegend, MainTable } from "./components/MainChart";
 import { ErrorState, LoadingBlock } from "./components/states";
@@ -91,9 +93,13 @@ function Header() {
 function Dashboard({ meta }: { meta: MetaResponse }) {
   const [rawParams, setParams] = useState<AnalysisParams>(() => defaultParams(meta));
   const [percentile, setPercentile] = useState(meta.default_percentile);
+  const [basis, setBasis] = useState<BufferBasis>("total");
+  const [showCorrected, setShowCorrected] = useState(false);
   const params = useDebounced(rawParams, 200);
+  const cutoffMode = params.mode === "cutoff";
 
-  const metrics = useMetrics(params, percentile);
+  const metrics = useMetrics(params, percentile, basis);
+  const correction = useCorrection(params);
   const series = useSeries(params);
   const horizon = useByHorizon(params);
   const hour = useByHour(params);
@@ -112,12 +118,16 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
         meta={meta}
         params={rawParams}
         percentile={percentile}
+        basis={basis}
         csvHref={csvUrl(params)}
         onChange={setParams}
         onPercentile={setPercentile}
+        onBasis={setBasis}
         onReset={() => {
           setParams(defaultParams(meta));
           setPercentile(meta.default_percentile);
+          setBasis("total");
+          setShowCorrected(false);
         }}
       />
 
@@ -139,17 +149,31 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
         error={series.error}
         isEmpty={series.data?.points.length === 0}
         onRetry={() => void series.refetch()}
-        legend={<MainLegend />}
+        legend={<MainLegend showCorrected={showCorrected && cutoffMode} />}
+        unit="GW"
         height={340}
         table={() => <MainTable points={series.data?.points ?? []} />}
       >
-        {() => <MainChart points={series.data?.points ?? []} />}
+        {() => (
+          <MainChart
+            points={series.data?.points ?? []}
+            showCorrected={showCorrected && cutoffMode}
+          />
+        )}
       </ChartCard>
+
+      <CorrectionPanel
+        data={correction.data}
+        show={showCorrected}
+        onToggle={setShowCorrected}
+        available={cutoffMode}
+      />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <ChartCard
           title="Error by forecast lead time"
-          subtitle="How accuracy improves as the forecast gets closer to delivery (GW)"
+          subtitle="How accuracy improves as the forecast gets closer to delivery"
+          unit="GW"
           isLoading={horizon.isLoading}
           error={horizon.error}
           isEmpty={horizon.data?.rows.length === 0}
@@ -175,18 +199,24 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
           isEmpty={dist.data?.n === 0}
           onRetry={() => void dist.refetch()}
           legend={<SignLegend />}
+          unit="Hours"
           table={() => (dist.data ? <HistogramTable data={dist.data} /> : null)}
         >
           {() =>
             dist.data && (
-              <Histogram data={dist.data} bufferMw={metrics.data?.insight.buffer_mw ?? null} />
+              <Histogram
+                data={dist.data}
+                bufferMw={metrics.data?.insight.buffer_mw ?? null}
+                basis={metrics.data?.insight.basis ?? basis}
+              />
             )
           }
         </ChartCard>
 
         <ChartCard
           title="Error by hour of day"
-          subtitle="Mean absolute error by delivery hour, UK time (GW)"
+          subtitle="Mean absolute error by delivery hour, UK time"
+          unit="GW"
           isLoading={hour.isLoading}
           error={hour.error}
           isEmpty={hour.data?.rows.length === 0}
@@ -200,7 +230,8 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
 
         <ChartCard
           title="Bias by delivery day"
-          subtitle="Average forecast − actual for each day (GW)"
+          subtitle="Average forecast − actual for each day"
+          unit="GW"
           isLoading={day.isLoading}
           error={day.error}
           isEmpty={day.data?.rows.length === 0}

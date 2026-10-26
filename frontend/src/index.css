@@ -15,6 +15,7 @@
   --border: rgba(11, 11, 11, 0.1);
   --series-actual: #2a78d6;
   --series-forecast: #eb6834;
+  --series-corrected: #1baf7a;
   --shortfall: #e34948;
   --surplus: #2a78d6;
   --accent: #2a78d6;
@@ -37,6 +38,7 @@
     --border: rgba(255, 255, 255, 0.1);
     --series-actual: #3987e5;
     --series-forecast: #d95926;
+    --series-corrected: #199e70;
     --shortfall: #e66767;
     --surplus: #3987e5;
     --accent: #3987e5;
@@ -59,6 +61,7 @@
   --border: rgba(255, 255, 255, 0.1);
   --series-actual: #3987e5;
   --series-forecast: #d95926;
+  --series-corrected: #199e70;
   --shortfall: #e66767;
   --surplus: #3987e5;
   --accent: #3987e5;

@@ -1,5 +1,6 @@
 import type {
   BiasDiagnosticsResponse,
+  CorrectionResponse,
   DistributionResponse,
   ErrorMetrics,
   GroupedResponse,
@@ -72,11 +73,14 @@ export const metrics: MetricsResponse = {
   coverage: { expected_hours: 48, with_forecast: 48, with_actual: 48, evaluated: 48, ratio: 1 },
   insight: {
     percentile: 90,
+    basis: "total",
     n: 48,
     buffer_mw: 4097.9,
     achieved_coverage: 0.9,
+    coverage_vs_fuelhh: 0.9,
     offset_mw: 1747.9,
     random_component_mw: 2350,
+    worst_1pct_mw: 6261.3,
     headline:
       "To cover wind under-delivery in 90% of hours, plan on 4,098 MW less wind than the forecast.",
     detail: "Based on 48 hours.",
@@ -96,6 +100,7 @@ export const series: SeriesResponse = {
       error_mw: 1000,
       publish_time: "2026-01-01T07:30:00Z",
       horizon_h: 16.5,
+      corrected_mw: 9200,
     },
   ],
 };
@@ -142,7 +147,42 @@ export const bias: BiasDiagnosticsResponse = {
     bias_mw: 1524.5,
     mean_ratio: 0.89,
   },
-  by_forecast_level: [{ label: "0-5 GW", n: 31, bias_mw: 539, mean_ratio: 0.86 }],
+  by_forecast_level: [
+    { label: "0-5 GW", n: 31, bias_mw: 539, mean_ratio: 0.86 },
+    { label: "15-30 GW", n: 298, bias_mw: 2683, mean_ratio: 0.86 },
+  ],
+  by_actual_level: [
+    { label: "0-5 GW", n: 62, bias_mw: 2150, mean_ratio: 0.7 },
+    { label: "15-30 GW", n: 190, bias_mw: 2130, mean_ratio: 0.9 },
+  ],
+  hindcast_by_level: [
+    { label: "0-5 GW", n: 43, bias_mw: 448, mean_ratio: 0.88 },
+    { label: "15-30 GW", n: 300, bias_mw: 2670, mean_ratio: 0.86 },
+  ],
+  hindcast_by_actual_level: [
+    { label: "0-5 GW", n: 65, bias_mw: 844, mean_ratio: 0.8 },
+    { label: "15-30 GW", n: 181, bias_mw: 2244, mean_ratio: 0.9 },
+  ],
+};
+
+export const correction: CorrectionResponse = {
+  query,
+  method: "OLS actual = a * forecast + b",
+  window_days: 7,
+  days_total: 2,
+  days_corrected: 2,
+  raw: errorMetrics,
+  corrected: { ...errorMetrics, mae_mw: 1568, rmse_mw: 2017, bias_mw: 449 },
+  mae_change_pct: -23.1,
+  rmse_change_pct: -19.47,
+  latest_fit: {
+    day: "2026-01-03",
+    slope: 1.04,
+    intercept: -3175,
+    train_hours: 168,
+    train_first_day: "2025-12-26",
+    train_last_day: "2026-01-01",
+  },
 };
 
 /** fetch mock routing by path; unknown paths return 404 problem JSON. */
@@ -156,6 +196,7 @@ export function mockApi(overrides: Record<string, () => Response> = {}) {
     "/metrics/by-day": byDay,
     "/error-distribution": distribution,
     "/diagnostics/bias": bias,
+    "/metrics/correction": correction,
   };
   return (input: RequestInfo | URL): Promise<Response> => {
     const raw = input instanceof Request ? input.url : input instanceof URL ? input.href : input;

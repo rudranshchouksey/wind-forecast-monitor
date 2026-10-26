@@ -1,6 +1,7 @@
 // Mirrors backend/app/models/api.py (the OpenAPI contract at /api/v1/openapi.json).
 
 export type Mode = "cutoff" | "horizon";
+export type BufferBasis = "total" | "random";
 
 export interface QueryEcho {
   from: string;
@@ -45,11 +46,14 @@ export interface ErrorMetrics {
 
 export interface Insight {
   percentile: number;
+  basis: BufferBasis;
   n: number;
   buffer_mw: number | null;
   achieved_coverage: number | null;
+  coverage_vs_fuelhh: number | null;
   offset_mw: number | null;
   random_component_mw: number | null;
+  worst_1pct_mw: number | null;
   headline: string;
   detail: string;
   caveat: string | null;
@@ -70,6 +74,7 @@ export interface SeriesPoint {
   error_mw: number;
   publish_time: string;
   horizon_h: number;
+  corrected_mw: number | null;
 }
 
 export interface SeriesResponse {
@@ -128,6 +133,31 @@ export interface BiasDiagnosticsResponse {
   bias_at_zero_horizon_mw: number | null;
   hindcast: BiasBucket;
   by_forecast_level: BiasBucket[];
+  by_actual_level: BiasBucket[];
+  hindcast_by_level: BiasBucket[];
+  hindcast_by_actual_level: BiasBucket[];
+}
+
+export interface CorrectionFit {
+  day: string;
+  slope: number;
+  intercept: number;
+  train_hours: number;
+  train_first_day: string;
+  train_last_day: string;
+}
+
+export interface CorrectionResponse {
+  query: QueryEcho;
+  method: string;
+  window_days: number;
+  days_total: number;
+  days_corrected: number;
+  raw: ErrorMetrics;
+  corrected: ErrorMetrics;
+  mae_change_pct: number | null;
+  rmse_change_pct: number | null;
+  latest_fit: CorrectionFit | null;
 }
 
 export interface CutoffPreset {

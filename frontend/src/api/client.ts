@@ -1,5 +1,7 @@
 import type {
   BiasDiagnosticsResponse,
+  BufferBasis,
+  CorrectionResponse,
   DistributionResponse,
   GroupedResponse,
   HorizonResponse,
@@ -64,8 +66,10 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 
 export const api = {
   meta: (signal?: AbortSignal) => getJson<MetaResponse>("/meta", signal),
-  metrics: (p: AnalysisParams, percentile: number, signal?: AbortSignal) =>
-    getJson<MetricsResponse>(`/metrics?${toQuery(p, { percentile })}`, signal),
+  metrics: (p: AnalysisParams, percentile: number, basis: BufferBasis, signal?: AbortSignal) =>
+    getJson<MetricsResponse>(`/metrics?${toQuery(p, { percentile, buffer_basis: basis })}`, signal),
+  correction: (p: AnalysisParams, signal?: AbortSignal) =>
+    getJson<CorrectionResponse>(`/metrics/correction?${toQuery(p)}`, signal),
   series: (p: AnalysisParams, signal?: AbortSignal) =>
     getJson<SeriesResponse>(`/forecast-vs-actual?${toQuery(p)}`, signal),
   byHorizon: (p: AnalysisParams, signal?: AbortSignal) =>

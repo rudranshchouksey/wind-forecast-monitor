@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { api, type AnalysisParams } from "./client";
+import type { BufferBasis } from "./types";
 
 // Keep the previous render on screen while the next params load, so charts don't flash empty.
 const analysis = { placeholderData: keepPreviousData, staleTime: 5 * 60_000 } as const;
@@ -8,10 +9,19 @@ const analysis = { placeholderData: keepPreviousData, staleTime: 5 * 60_000 } as
 export const useMeta = () =>
   useQuery({ queryKey: ["meta"], queryFn: ({ signal }) => api.meta(signal), staleTime: Infinity });
 
-export const useMetrics = (p: AnalysisParams, percentile: number) =>
+export const useMetrics = (p: AnalysisParams, percentile: number, basis: BufferBasis) =>
   useQuery({
-    queryKey: ["metrics", p, percentile],
-    queryFn: ({ signal }) => api.metrics(p, percentile, signal),
+    queryKey: ["metrics", p, percentile, basis],
+    queryFn: ({ signal }) => api.metrics(p, percentile, basis, signal),
+    ...analysis,
+  });
+
+/** Only defined at the decision cutoff, so it is not requested in horizon mode. */
+export const useCorrection = (p: AnalysisParams) =>
+  useQuery({
+    queryKey: ["correction", p.from, p.to, p.cutoffTime],
+    queryFn: ({ signal }) => api.correction(p, signal),
+    enabled: p.mode === "cutoff",
     ...analysis,
   });
 

@@ -21,8 +21,9 @@ describe("api client", () => {
   });
 
   it("returns parsed JSON", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
-    const m = await api.metrics(params, 90);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
+    const m = await api.metrics(params, 90, "random");
+    expect(fetchSpy.mock.calls[0]?.[0]).toEqual(expect.stringContaining("buffer_basis=random"));
     expect(m.metrics.mae_mw).toBeCloseTo(2038.9);
   });
 
@@ -38,11 +39,17 @@ describe("api client", () => {
           ),
       }),
     );
-    await expect(api.metrics(params, 90)).rejects.toMatchObject({
+    await expect(api.metrics(params, 90, "total")).rejects.toMatchObject({
       name: "ApiError",
       status: 400,
       message: "dates must be within",
     });
+  });
+
+  it("requests the correction endpoint", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
+    const c = await api.correction(params);
+    expect(c.mae_change_pct).toBeCloseTo(-23.1);
   });
 
   it("falls back to a generic message for non-JSON errors", async () => {

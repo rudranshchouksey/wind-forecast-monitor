@@ -28,8 +28,10 @@ export function Explainer() {
               low.
             </li>
             <li>
-              <strong className="text-ink">P90 shortfall</strong>: in 9 out of 10 shortfall hours,
-              the gap was smaller than this.
+              <strong className="text-ink">Worst 1% of hours</strong>: in 1 hour in 100, wind fell
+              short of the forecast by more than this. The lead-time chart also shows the{" "}
+              <strong className="text-ink">P90 shortfall</strong>, which looks only at hours with a
+              shortfall. Tap the ⓘ on any tile for its exact definition.
             </li>
           </ul>
         </div>
@@ -38,7 +40,10 @@ export function Explainer() {
           <p className="mt-1">
             The suggested buffer is how much less wind than forecast to plan for so that actual wind
             would have been enough in the chosen share of hours (90% by default). Raise the share
-            for more protection at the cost of buying more.
+            for more protection at the cost of buying more. “Random error only” leaves out the
+            persistent offset between the forecast and metered output; use it only if your position
+            isn&apos;t settled against metered wind. The optional bias-corrected forecast shows how
+            much of the error a simple correction learned from past days removes.
           </p>
         </div>
         <div>

@@ -14,7 +14,13 @@ import {
   type TooltipProps,
 } from "recharts";
 
-import type { DistributionResponse, GroupRow, HorizonResponse, HorizonRow } from "../api/types";
+import type {
+  BufferBasis,
+  DistributionResponse,
+  GroupRow,
+  HorizonResponse,
+  HorizonRow,
+} from "../api/types";
 import {
   formatDeliveryDay,
   formatGwTick,
@@ -26,6 +32,7 @@ import {
 import { DataTable, Legend } from "./ChartCard";
 import { TooltipBox } from "./ChartTooltip";
 import { DataEndBar } from "./DataEndBar";
+import { bufferLineLabel } from "../lib/kpis";
 import { extent, niceTicks } from "../lib/ticks";
 
 const axisProps = { stroke: "var(--axis)", tickLine: false } as const;
@@ -326,9 +333,11 @@ function BinTooltip({ active, payload }: TooltipProps<number, string>) {
 export function Histogram({
   data,
   bufferMw,
+  basis = "total",
 }: {
   data: DistributionResponse;
   bufferMw: number | null;
+  basis?: BufferBasis;
 }) {
   const points: BinPoint[] = data.bins.map((b) => ({
     mid: (b.lower_mw + b.upper_mw) / 2,
@@ -371,7 +380,7 @@ export function Histogram({
             stroke="var(--ink)"
             strokeWidth={1.5}
             label={{
-              value: `buffer ${formatMw(bufferMw)}`,
+              value: bufferLineLabel(bufferMw, basis),
               position: "top",
               fill: "var(--ink)",
               fontSize: 11,

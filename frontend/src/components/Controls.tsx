@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 import type { AnalysisParams } from "../api/client";
-import type { MetaResponse, Mode } from "../api/types";
+import type { BufferBasis, MetaResponse, Mode } from "../api/types";
 
 export const PERCENTILES = [80, 90, 95, 99] as const;
 export const HORIZON_MIN = 1;
@@ -12,10 +12,55 @@ interface ControlsProps {
   meta: MetaResponse;
   params: AnalysisParams;
   percentile: number;
+  basis: BufferBasis;
   csvHref: string;
   onChange: (p: AnalysisParams) => void;
   onPercentile: (p: number) => void;
+  onBasis: (b: BufferBasis) => void;
   onReset: () => void;
+}
+
+/** Radio group styled as a segmented control (keyboard: arrow keys move between options). */
+function Segmented<T extends string>({
+  name,
+  legend,
+  value,
+  options,
+  onChange,
+}: {
+  name: string;
+  legend: string;
+  value: T;
+  options: readonly (readonly [T, string])[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-1 text-xs font-medium text-ink-2">{legend}</legend>
+      <div className="inline-flex flex-wrap rounded-md border border-line p-0.5">
+        {options.map(([v, label]) => (
+          <label
+            key={v}
+            className={`cursor-pointer rounded px-2.5 py-1 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--focus)] ${
+              value === v ? "bg-accent text-white" : "text-ink-2 hover:bg-surface-2"
+            }`}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={v}
+              checked={value === v}
+              onChange={() => {
+                onChange(v);
+              }}
+              className="sr-only"
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 const fieldClass =
@@ -25,9 +70,11 @@ export function Controls({
   meta,
   params,
   percentile,
+  basis,
   csvHref,
   onChange,
   onPercentile,
+  onBasis,
   onReset,
 }: ControlsProps) {
   const id = useId();
@@ -37,6 +84,7 @@ export function Controls({
   const setMode = (mode: Mode) => {
     set({ mode });
   };
+  const horizonMode = params.mode === "horizon";
 
   return (
     <form
@@ -81,36 +129,18 @@ export function Controls({
         />
       </fieldset>
 
-      <fieldset className="min-w-0">
-        <legend className="mb-1 text-xs font-medium text-ink-2">Evaluate forecasts</legend>
-        <div className="inline-flex rounded-md border border-line p-0.5" role="radiogroup">
-          {(
-            [
-              ["cutoff", "At decision cutoff"],
-              ["horizon", "At fixed lead time"],
-            ] as const
-          ).map(([value, label]) => (
-            <label
-              key={value}
-              className={`cursor-pointer rounded px-2.5 py-1 text-sm ${
-                params.mode === value ? "bg-accent text-white" : "text-ink-2 hover:bg-surface-2"
-              }`}
-            >
-              <input
-                type="radio"
-                name={`${id}-mode`}
-                value={value}
-                checked={params.mode === value}
-                onChange={() => {
-                  setMode(value);
-                }}
-                className="sr-only"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <Segmented
+        name={`${id}-mode`}
+        legend="Evaluate forecasts"
+        value={params.mode}
+        options={
+          [
+            ["cutoff", "At decision cutoff"],
+            ["horizon", "At fixed lead time"],
+          ] as const
+        }
+        onChange={setMode}
+      />
 
       <div className="flex flex-col">
         <label htmlFor={`${id}-cutoff`} className="mb-1 text-xs font-medium text-ink-2">
@@ -134,7 +164,10 @@ export function Controls({
       </div>
 
       <div className="flex w-full min-w-0 flex-col sm:w-52">
-        <label htmlFor={`${id}-horizon`} className="mb-1 text-xs font-medium text-ink-2">
+        <label
+          htmlFor={`${id}-horizon`}
+          className={`mb-1 text-xs font-medium text-ink-2 ${horizonMode ? "" : "opacity-60"}`}
+        >
           Lead time: <span className="tabular text-ink">{params.horizonH} h</span>
         </label>
         <input
@@ -144,13 +177,19 @@ export function Controls({
           max={HORIZON_MAX}
           step={1}
           value={params.horizonH}
+          disabled={!horizonMode}
+          aria-describedby={horizonMode ? undefined : `${id}-horizon-hint`}
           aria-valuetext={`${params.horizonH} hours before delivery`}
-          className="accent-[var(--accent)]"
+          className="accent-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
           onChange={(e) => {
-            // Moving the slider is an explicit request to look at a fixed lead time.
-            set({ horizonH: Number(e.target.value), mode: "horizon" });
+            set({ horizonH: Number(e.target.value) });
           }}
         />
+        {!horizonMode && (
+          <span id={`${id}-horizon-hint`} className="mt-1 text-xs text-muted">
+            Select “At fixed lead time” to use the slider
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col">
@@ -172,6 +211,19 @@ export function Controls({
           ))}
         </select>
       </div>
+
+      <Segmented
+        name={`${id}-basis`}
+        legend="Buffer basis"
+        value={basis}
+        options={
+          [
+            ["total", "Include systematic offset"],
+            ["random", "Random error only"],
+          ] as const
+        }
+        onChange={onBasis}
+      />
 
       <div className="flex gap-2 sm:ml-auto">
         <button

@@ -12,6 +12,8 @@ interface ChartCardProps {
   /** Accessible alternative: the same numbers as a table. */
   table?: () => ReactNode;
   legend?: ReactNode;
+  /** Y-axis unit, shown above the plot's top-left corner (not inside the axis, where it collides). */
+  unit?: string;
   height?: number;
   children: () => ReactNode;
   className?: string;
@@ -26,6 +28,7 @@ export function ChartCard({
   onRetry,
   table,
   legend,
+  unit,
   height = 280,
   children,
   className = "",
@@ -38,7 +41,17 @@ export function ChartCard({
   else if (isLoading) body = <LoadingBlock label={`Loading ${title}`} />;
   else if (isEmpty) body = <EmptyState />;
   else if (showTable && table) body = <div className="max-h-80 overflow-auto">{table()}</div>;
-  else body = <div style={{ height }}>{children()}</div>;
+  else
+    body = (
+      <>
+        {unit && (
+          <p aria-hidden="true" className="mb-1 text-xs text-muted">
+            {unit}
+          </p>
+        )}
+        <div style={{ height }}>{children()}</div>
+      </>
+    );
 
   return (
     <section
@@ -74,7 +87,7 @@ export function ChartCard({
 export function Legend({
   items,
 }: {
-  items: { label: string; color: string; kind?: "line" | "box" }[];
+  items: { label: string; color: string; kind?: "line" | "box" | "dash" }[];
 }) {
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2">
@@ -83,7 +96,13 @@ export function Legend({
           <span
             aria-hidden="true"
             className={it.kind === "box" ? "h-2.5 w-2.5 rounded-sm" : "h-0.5 w-4 rounded-full"}
-            style={{ background: it.color }}
+            style={
+              it.kind === "dash"
+                ? {
+                    background: `repeating-linear-gradient(90deg, ${it.color} 0 5px, transparent 5px 8px)`,
+                  }
+                : { background: it.color }
+            }
           />
           {it.label}
         </li>

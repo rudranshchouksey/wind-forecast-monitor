@@ -1,5 +1,5 @@
-import type { BiasDiagnosticsResponse, MetricsResponse } from "../api/types";
-import { formatDeliveryDay, formatHours, formatMw, formatPct } from "../lib/format";
+import type { MetricsResponse } from "../api/types";
+import { formatHours, formatPct } from "../lib/format";
 import { Skeleton } from "./states";
 
 export function InsightCard({ data }: { data: MetricsResponse | undefined }) {
@@ -44,53 +44,5 @@ export function InsightCard({ data }: { data: MetricsResponse | undefined }) {
         </div>
       )}
     </section>
-  );
-}
-
-export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }) {
-  if (!data) return null;
-  const rows: [string, string][] = [
-    [
-      "All hours at the selected cutoff/lead time",
-      formatMw(data.overall_bias_mw, { signed: true }),
-    ],
-    ["Forecast made 0 h before the hour", formatMw(data.bias_at_zero_horizon_mw, { signed: true })],
-    [
-      `WINDFOR values for ${data.hindcast.label}`,
-      formatMw(data.hindcast.bias_mw, { signed: true }),
-    ],
-    ...data.by_forecast_level.map((b): [string, string] => [
-      `Forecast level ${b.label} (${b.n} h)`,
-      formatMw(b.bias_mw, { signed: true }),
-    ]),
-  ];
-  return (
-    <details className="group rounded-xl border border-line bg-surface p-5">
-      <summary className="cursor-pointer text-sm font-semibold text-ink">
-        Is the bias forecast error? (diagnostics)
-      </summary>
-      <p className="mt-3 text-sm text-ink-2">
-        If the gap were forecasting skill, it would shrink as the forecast gets closer to real time.
-        It barely does, and WINDFOR stays above FUELHH even for hours that had already ended when it
-        was published. That points to a persistent difference between the two series, not weather
-        uncertainty. Elexon&apos;s documentation doesn&apos;t explain it; see docs/analysis.md.
-      </p>
-      <table className="tabular mt-3 w-full text-sm">
-        <caption className="sr-only">Mean forecast minus actual under different conditions</caption>
-        <tbody>
-          {rows.map(([k, v]) => (
-            <tr key={k} className="border-t border-line">
-              <th scope="row" className="py-1.5 pr-4 text-left font-normal text-ink-2">
-                {k}
-              </th>
-              <td className="py-1.5 text-right font-medium text-ink">{v}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-2 text-xs text-muted">
-        Delivery days {formatDeliveryDay(data.query.from)} to {formatDeliveryDay(data.query.to)}.
-      </p>
-    </details>
   );
 }
