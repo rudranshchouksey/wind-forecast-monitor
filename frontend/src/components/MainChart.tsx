@@ -1,0 +1,157 @@
+import { useMemo } from "react";
+import {
+  Brush,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  type TooltipProps,
+} from "recharts";
+
+import type { SeriesPoint } from "../api/types";
+import { formatDay, formatGwTick, formatHours, formatLondon, formatMw } from "../lib/format";
+import { DataTable, Legend } from "./ChartCard";
+import { extent, niceTicks } from "../lib/ticks";
+import { TooltipBox } from "./ChartTooltip";
+
+interface Row {
+  t: number;
+  actual: number;
+  forecast: number;
+  error: number;
+  publish: string;
+  horizon: number;
+}
+
+function toRows(points: SeriesPoint[]): Row[] {
+  return points.map((p) => ({
+    t: Date.parse(p.target_time),
+    actual: p.actual_mw,
+    forecast: p.forecast_mw,
+    error: p.error_mw,
+    publish: p.publish_time,
+    horizon: p.horizon_h,
+  }));
+}
+
+export function MainLegend() {
+  return (
+    <Legend
+      items={[
+        { label: "Actual (FUELHH, hourly mean)", color: "var(--series-actual)" },
+        { label: "Forecast available at decision time (WINDFOR)", color: "var(--series-forecast)" },
+      ]}
+    />
+  );
+}
+
+function MainTooltip({ active, payload }: TooltipProps<number, string>) {
+  const row = payload?.[0]?.payload as Row | undefined;
+  if (!active || !row) return null;
+  const kind = row.error > 0 ? "shortfall" : row.error < 0 ? "surplus" : "exact";
+  return (
+    <TooltipBox
+      title={formatLondon(row.t)}
+      rows={[
+        { label: "actual", value: formatMw(row.actual), color: "var(--series-actual)" },
+        { label: "forecast", value: formatMw(row.forecast), color: "var(--series-forecast)" },
+        { label: `error (${kind})`, value: formatMw(row.error, { signed: true }) },
+      ]}
+      footer={
+        <>
+          Forecast published {formatLondon(row.publish)} ({formatHours(row.horizon)} ahead)
+        </>
+      }
+    />
+  );
+}
+
+export function MainChart({ points }: { points: SeriesPoint[] }) {
+  const rows = useMemo(() => toRows(points), [points]);
+  const yTicks = useMemo(
+    () => niceTicks(0, extent(rows.flatMap((r) => [r.actual, r.forecast]))[1]),
+    [rows],
+  );
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="t"
+          type="number"
+          scale="time"
+          domain={["dataMin", "dataMax"]}
+          tickFormatter={formatDay}
+          minTickGap={40}
+          stroke="var(--axis)"
+          tickLine={false}
+        />
+        <YAxis
+          ticks={yTicks}
+          domain={[0, yTicks[yTicks.length - 1] ?? "auto"]}
+          tickFormatter={formatGwTick}
+          width={44}
+          stroke="var(--axis)"
+          tickLine={false}
+          axisLine={false}
+          label={{
+            value: "GW",
+            position: "insideTopLeft",
+            offset: 0,
+            dy: -4,
+            fill: "var(--ink-muted)",
+            fontSize: 12,
+          }}
+        />
+        <Tooltip content={<MainTooltip />} cursor={{ stroke: "var(--axis)", strokeWidth: 1 }} />
+        <Line
+          dataKey="actual"
+          name="Actual"
+          stroke="var(--series-actual)"
+          strokeWidth={2}
+          dot={false}
+          activeDot={{ r: 4, stroke: "var(--surface)", strokeWidth: 2 }}
+          isAnimationActive={false}
+        />
+        <Line
+          dataKey="forecast"
+          name="Forecast"
+          stroke="var(--series-forecast)"
+          strokeWidth={2}
+          dot={false}
+          activeDot={{ r: 4, stroke: "var(--surface)", strokeWidth: 2 }}
+          isAnimationActive={false}
+        />
+        <Brush
+          dataKey="t"
+          height={28}
+          travellerWidth={8}
+          tickFormatter={formatDay}
+          stroke="var(--axis)"
+          fill="var(--surface)"
+          aria-label="Zoom: drag the handles to choose a time window"
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function MainTable({ points }: { points: SeriesPoint[] }) {
+  return (
+    <DataTable
+      caption="Hourly actual and forecast wind generation"
+      columns={["Time (London)", "Actual", "Forecast", "Error", "Published", "Lead time"]}
+      rows={points.map((p) => [
+        formatLondon(p.target_time),
+        formatMw(p.actual_mw),
+        formatMw(p.forecast_mw),
+        formatMw(p.error_mw, { signed: true }),
+        formatLondon(p.publish_time),
+        formatHours(p.horizon_h),
+      ])}
+    />
+  );
+}
