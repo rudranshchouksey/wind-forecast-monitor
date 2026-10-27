@@ -7,9 +7,12 @@ export function cx(...classes: (string | false | null | undefined)[]): string {
 export const focusRing =
   "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-/** The same ring for a label that wraps a visually hidden input (radio, checkbox). */
-export const focusRingWithin =
-  "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent";
+/**
+ * The same ring on an element that follows a visually hidden input (`peer`): radios and
+ * checkboxes. A sibling selector, not :has(), which browsers re-check on every DOM change.
+ */
+export const focusRingPeer =
+  "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost";
 export type ButtonSize = "sm" | "md";

@@ -1,6 +1,9 @@
+import { memo } from "react";
+
 import { Collapsible } from "./ui";
 
-export function Explainer() {
+/** Static copy; memoised so query updates elsewhere never re-render it. */
+export const Explainer = memo(function Explainer() {
   return (
     <Collapsible title="How to read this" defaultOpen>
       <div className="grid gap-x-8 gap-y-5 text-body text-ink-2 md:grid-cols-2">
@@ -56,4 +59,4 @@ export function Explainer() {
       </div>
     </Collapsible>
   );
-}
+});

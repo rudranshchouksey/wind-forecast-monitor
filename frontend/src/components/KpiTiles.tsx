@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import type { GroupRow, MetricsResponse } from "../api/types";
 import { buildTiles } from "../lib/kpis";
@@ -26,7 +26,7 @@ function TileSkeleton({ primary = false }: { primary?: boolean }) {
   );
 }
 
-export function KpiTiles({
+function KpiTilesView({
   data,
   isLoading,
   daily,
@@ -84,3 +84,6 @@ export function KpiTiles({
     </dl>
   );
 }
+
+/** Memoised: re-renders only when its metrics or daily rows change, not on every query update. */
+export const KpiTiles = memo(KpiTilesView);

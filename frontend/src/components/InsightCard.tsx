@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { DistributionResponse, MetricsResponse } from "../api/types";
 import { formatHours, formatMw, formatPct } from "../lib/format";
 import { bufferLineLabel, buildTiles } from "../lib/kpis";
@@ -34,7 +35,7 @@ export function HeroSkeleton() {
  * The decision hero: the suggested buffer as the centrepiece, the plain-English takeaway, the
  * caveat as a callout and the buffer line on a mini distribution.
  */
-export function InsightCard({
+function InsightCardView({
   data,
   distribution,
   className,
@@ -140,3 +141,6 @@ export function InsightCard({
     </section>
   );
 }
+
+/** Memoised: re-renders only when its metrics or distribution change. */
+export const InsightCard = memo(InsightCardView);

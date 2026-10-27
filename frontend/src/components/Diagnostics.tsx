@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { BiasDiagnosticsResponse, CorrectionResponse } from "../api/types";
 import { formatGwSigned, levelGrowthSentence } from "../lib/diagnostics";
 import { formatDeliveryDay, formatMw } from "../lib/format";
@@ -5,7 +6,7 @@ import { Card, Collapsible, Skeleton, Switch } from "./ui";
 
 const BIAS_TITLE = "Is the bias forecast error? (diagnostics)";
 
-export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }) {
+function BiasNoteView({ data }: { data: BiasDiagnosticsResponse | undefined }) {
   // The collapsed header is there from the start, so nothing below it moves when data arrives.
   if (!data)
     return (
@@ -227,3 +228,6 @@ export function CorrectionPanel({
     </Card>
   );
 }
+
+/** Memoised: re-renders only when the diagnostics response changes. */
+export const BiasNote = memo(BiasNoteView);

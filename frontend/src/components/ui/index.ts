@@ -7,7 +7,7 @@ export {
   buttonClass,
   cx,
   focusRing,
-  focusRingWithin,
+  focusRingPeer,
   type ButtonSize,
   type ButtonVariant,
 } from "./cx";

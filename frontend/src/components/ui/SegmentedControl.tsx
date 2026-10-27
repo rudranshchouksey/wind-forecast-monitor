@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from "react";
 
-import { cx, focusRingWithin } from "./cx";
+import { cx, focusRingPeer } from "./cx";
 import { SegmentIndicator } from "./SegmentIndicator";
 
 export interface SegmentOption<T extends string> {
@@ -51,15 +51,9 @@ export function SegmentedControl<T extends string>({
               className={cx(
                 "relative cursor-pointer rounded-[4px] px-2.5 py-1 text-body leading-5 whitespace-nowrap transition-colors duration-150",
                 selected ? "text-ink" : "text-ink-2 hover:text-ink",
-                focusRingWithin,
               )}
             >
-              {selected &&
-                (indicator ? (
-                  indicator({ layoutId: `${groupName}-indicator` })
-                ) : (
-                  <SegmentIndicator layoutId={`${groupName}-indicator`} />
-                ))}
+              {/* The input comes first so the ring and indicator can follow it as peers. */}
               <input
                 type="radio"
                 name={groupName}
@@ -68,9 +62,19 @@ export function SegmentedControl<T extends string>({
                 onChange={() => {
                   onChange(o.value);
                 }}
-                className="sr-only"
+                className="peer sr-only"
               />
+              {selected &&
+                (indicator ? (
+                  indicator({ layoutId: `${groupName}-indicator` })
+                ) : (
+                  <SegmentIndicator layoutId={`${groupName}-indicator`} />
+                ))}
               <span className="relative">{o.label}</span>
+              <span
+                aria-hidden="true"
+                className={cx("pointer-events-none absolute inset-0 rounded-[4px]", focusRingPeer)}
+              />
             </label>
           );
         })}
