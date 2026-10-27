@@ -120,12 +120,13 @@ describe("App", () => {
     expect(horizonCorrection).toBe(false);
   });
 
-  it("toggles the theme", async () => {
+  it("starts dark (dark-first) and toggles the theme", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
     renderApp();
-    await userEvent.click(screen.getByRole("button", { name: "Switch to dark mode" }));
     expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(screen.getByRole("button", { name: "Switch to light mode" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Switch to light mode" }));
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
   });
 
   it("derives defaults from metadata", () => {

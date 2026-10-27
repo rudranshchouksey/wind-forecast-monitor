@@ -2,6 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
+import { resetThemeForTests } from "../lib/theme";
+
 // jsdom lacks these browser APIs used by Recharts and the theme hook.
 class ResizeObserverStub {
   observe() {}
@@ -26,5 +28,11 @@ Object.defineProperty(window, "matchMedia", {
 
 afterEach(() => {
   cleanup();
+  resetThemeForTests();
+  try {
+    localStorage.clear();
+  } catch {
+    /* no storage */
+  }
   vi.restoreAllMocks();
 });
