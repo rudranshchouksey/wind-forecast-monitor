@@ -13,7 +13,8 @@ function TileSkeleton({ primary = false }: { primary?: boolean }) {
   return (
     <div
       className={cx(
-        "flex flex-col gap-3 rounded-card border border-line bg-panel p-4",
+        // Same height as a loaded tile (label, value, note, sparkline).
+        "flex min-h-[11.75rem] flex-col gap-3 rounded-card border border-line bg-panel p-4",
         primary && PRIMARY_SPAN,
       )}
     >

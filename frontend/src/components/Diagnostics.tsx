@@ -1,10 +1,18 @@
 import type { BiasDiagnosticsResponse, CorrectionResponse } from "../api/types";
 import { formatGwSigned, levelGrowthSentence } from "../lib/diagnostics";
 import { formatDeliveryDay, formatMw } from "../lib/format";
-import { Card, Collapsible, Switch } from "./ui";
+import { Card, Collapsible, Skeleton, Switch } from "./ui";
+
+const BIAS_TITLE = "Is the bias forecast error? (diagnostics)";
 
 export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }) {
-  if (!data) return null;
+  // The collapsed header is there from the start, so nothing below it moves when data arrives.
+  if (!data)
+    return (
+      <Collapsible title={BIAS_TITLE}>
+        <Skeleton className="h-24 w-full" />
+      </Collapsible>
+    );
   const growth = levelGrowthSentence(data.by_forecast_level);
   const hindFirst = data.hindcast_by_level[0];
   const hindLast = data.hindcast_by_level[data.hindcast_by_level.length - 1];
@@ -20,7 +28,7 @@ export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }
     ],
   ];
   return (
-    <Collapsible title="Is the bias forecast error? (diagnostics)">
+    <Collapsible title={BIAS_TITLE}>
       <div className="space-y-4 text-body text-ink-2">
         <p>
           If the gap were forecasting skill, it would shrink as the forecast gets closer to real
@@ -155,7 +163,19 @@ export function CorrectionPanel({
       </Card>
     );
   }
-  if (!data) return null;
+  if (!data)
+    return (
+      <Card
+        title="Bias-corrected forecast"
+        aria-busy="true"
+        className="min-h-[24.5rem] sm:min-h-[18rem] lg:min-h-[233px]"
+      >
+        <div aria-hidden="true" className="space-y-3">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+      </Card>
+    );
   const rows: [string, string][] = [
     [
       "Mean absolute error",

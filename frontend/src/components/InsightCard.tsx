@@ -16,7 +16,8 @@ export function HeroSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="grid gap-6 rounded-card border border-line bg-panel/80 p-5 sm:p-7 lg:grid-cols-[1.5fr_1fr]"
+      // Heights match the loaded hero (measured at 412, 768 and 1350 px) so it doesn't shift.
+      className="grid min-h-[850px] gap-6 rounded-card border border-line bg-panel/80 p-5 sm:min-h-[640px] sm:p-7 lg:min-h-[461px] lg:grid-cols-[1.5fr_1fr]"
     >
       <div className="space-y-4">
         <Skeleton className="h-3 w-40" />

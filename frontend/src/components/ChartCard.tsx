@@ -1,5 +1,6 @@
 import { Suspense, useState, type CSSProperties, type ReactNode } from "react";
 
+import { useNearViewport } from "../lib/useNearViewport";
 import { EmptyState, ErrorState, ChartSkeleton } from "./states";
 import { Button, Card, cx } from "./ui";
 
@@ -44,15 +45,18 @@ export function ChartCard({
   className,
 }: ChartCardProps) {
   const [showTable, setShowTable] = useState(false);
+  // Charts below the fold mount when they come near the viewport, so first load renders less.
+  const [plotRef, near] = useNearViewport<HTMLDivElement>();
   const ready = !error && !isLoading && !isEmpty;
+  const skeleton = <ChartSkeleton label={`Loading ${title}`} height="100%" shape={shape} />;
 
   let body: ReactNode;
   if (error) body = <ErrorState error={error} onRetry={onRetry} />;
-  else if (isLoading)
-    body = <ChartSkeleton label={`Loading ${title}`} height={height} shape={shape} />;
   else if (isEmpty) body = <EmptyState />;
-  else if (showTable && table) body = <div className="max-h-80 overflow-auto">{table()}</div>;
+  else if (showTable && table && ready)
+    body = <div className="max-h-80 overflow-auto">{table()}</div>;
   else
+    // Loading and loaded share one frame (unit row + fixed-height plot), so nothing shifts.
     body = (
       <>
         {unit && (
@@ -62,16 +66,13 @@ export function ChartCard({
         )}
         {/* Phones get 80% of the height; the chart stays readable without dominating the screen. */}
         <div
+          ref={plotRef}
           role="figure"
           aria-label={ariaLabel ?? title}
           className="h-[calc(var(--h)*0.8px)] sm:h-[calc(var(--h)*1px)]"
           style={{ "--h": height } as CSSProperties}
         >
-          <Suspense
-            fallback={<ChartSkeleton label={`Loading ${title}`} height="100%" shape={shape} />}
-          >
-            {children()}
-          </Suspense>
+          {isLoading || !near ? skeleton : <Suspense fallback={skeleton}>{children()}</Suspense>}
         </div>
       </>
     );
@@ -83,10 +84,12 @@ export function ChartCard({
       className={cx("overflow-hidden", className)}
       aria-busy={isRefreshing || isLoading}
       actions={
-        table && ready ? (
+        // Present while loading too (disabled), so the header keeps its height.
+        table && !error && !isEmpty ? (
           <Button
             size="sm"
             variant="ghost"
+            disabled={!ready}
             onClick={() => {
               setShowTable((v) => !v);
             }}
@@ -102,7 +105,7 @@ export function ChartCard({
           <div className="progress-bar h-px w-2/5 bg-accent" />
         </div>
       )}
-      {legend && !showTable && ready && <div className="mb-3">{legend}</div>}
+      {legend && !showTable && !error && !isEmpty && <div className="mb-3">{legend}</div>}
       <div
         className={cx(
           "transition-opacity duration-[220ms] ease-[var(--ease-out-expo)]",

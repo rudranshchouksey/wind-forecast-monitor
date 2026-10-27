@@ -32,7 +32,7 @@ import { HeroSkeleton, InsightCard } from "./components/InsightCard";
 import { KpiTiles } from "./components/KpiTiles";
 import { ShortcutHelp } from "./components/ShortcutHelp";
 import { ErrorState } from "./components/states";
-import { Button, Card, Reveal, Skeleton } from "./components/ui";
+import { Button, Card, Reveal } from "./components/ui";
 import { WindField } from "./components/WindField";
 import { formatDeliveryDay, formatHourOfDay } from "./lib/format";
 import { endFirstLoadSoon } from "./lib/motion";
@@ -164,10 +164,7 @@ function Dashboard({
       </p>
 
       <main id="main" className={`${PAGE} space-y-6 pt-6 pb-10 sm:space-y-8`}>
-        <p className="max-w-3xl text-body text-ink-2">
-          How far the day-ahead national wind forecast missed actual output, and what that means for
-          purchasing
-        </p>
+        <p className="max-w-3xl text-body text-ink-2">{INTRO}</p>
 
         {metrics.error ? (
           <Card>
@@ -332,16 +329,30 @@ function Dashboard({
   );
 }
 
+const INTRO =
+  "How far the day-ahead national wind forecast missed actual output, and what that means for purchasing";
+
+/**
+ * Same geometry as the loaded dashboard (control bar or panel, intro, hero, KPI row), so nothing
+ * moves when the metadata arrives. index.html carries a static copy of the top of it, so the first
+ * paint doesn't wait for JavaScript.
+ */
 function DashboardSkeleton() {
   return (
-    <div className={`${PAGE} space-y-6 pt-6 sm:space-y-8`}>
-      <div role="status" aria-live="polite">
-        <span className="sr-only">Loading dashboard…</span>
-        <Skeleton className="h-16 w-full rounded-card" />
+    <>
+      <div aria-hidden="true" className="h-[49px] border-b border-line lg:hidden" />
+      <div aria-hidden="true" className={`${PAGE} pt-6 max-lg:hidden`}>
+        <div className="h-[178px] rounded-card border border-line bg-panel/80" />
       </div>
-      <HeroSkeleton />
-      <Skeleton className="h-96 w-full rounded-card" />
-    </div>
+      <div className={`${PAGE} space-y-6 pt-6 sm:space-y-8`}>
+        <p className="max-w-3xl text-body text-ink-2">{INTRO}</p>
+        <div role="status" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Loading dashboard…</span>
+          <HeroSkeleton />
+          <KpiTiles data={undefined} isLoading />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -371,17 +382,17 @@ export function App() {
       <AppHeader
         meta={meta.data}
         actions={
-          meta.data && (
-            <Button
-              variant="ghost"
-              onClick={openHelp}
-              aria-label="Keyboard shortcuts"
-              title="Keyboard shortcuts (?)"
-              className="w-8 px-0 font-mono"
-            >
-              ?
-            </Button>
-          )
+          // Always rendered (inactive until the dashboard loads) so the header never shifts.
+          <Button
+            variant="ghost"
+            disabled={!meta.data}
+            onClick={openHelp}
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+            className="w-8 px-0 font-mono"
+          >
+            ?
+          </Button>
         }
       />
       {meta.error ? (
