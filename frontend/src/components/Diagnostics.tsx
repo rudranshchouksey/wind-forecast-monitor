@@ -20,10 +20,7 @@ export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }
     ],
   ];
   return (
-    <Collapsible
-      title="Is the bias forecast error? (diagnostics)"
-      summary={`Mean forecast − actual: ${formatMw(data.overall_bias_mw, { signed: true })}`}
-    >
+    <Collapsible title="Is the bias forecast error? (diagnostics)">
       <div className="space-y-4 text-body text-ink-2">
         <p>
           If the gap were forecasting skill, it would shrink as the forecast gets closer to real

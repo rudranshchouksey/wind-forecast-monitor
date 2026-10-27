@@ -90,25 +90,6 @@
   --wind: 71 77 87;
 }
 
-/* LEGACY-ALIASES: old token names, kept until every component is on the new ones. */
-:root {
-  --page: var(--bg);
-  --surface: var(--panel);
-  --surface-2: var(--raised);
-  --ink: var(--text);
-  --ink-2: var(--text-2);
-  --ink-muted: var(--text-muted);
-  --series-actual: var(--actual);
-  --series-forecast: var(--forecast);
-  --series-corrected: var(--corrected);
-  --focus: var(--accent);
-}
-@theme inline {
-  --color-page: var(--bg);
-  --color-surface: var(--panel);
-  --color-surface-2: var(--raised);
-}
-
 @theme inline {
   --color-bg: var(--bg);
   --color-panel: var(--panel);

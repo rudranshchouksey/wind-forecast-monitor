@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type CSSProperties, type ReactNode } from "react";
 
 import { EmptyState, ErrorState, ChartSkeleton } from "./states";
 import { Button, Card, cx } from "./ui";
@@ -20,6 +20,8 @@ interface ChartCardProps {
   shape?: "line" | "bars";
   /** Previous data is on screen while new data loads: dim it and show a progress hairline. */
   isRefreshing?: boolean;
+  /** What the plot shows, for screen readers (the table view has the numbers). */
+  ariaLabel?: string;
   children: () => ReactNode;
   className?: string;
 }
@@ -37,6 +39,7 @@ export function ChartCard({
   height = 280,
   shape = "line",
   isRefreshing = false,
+  ariaLabel,
   children,
   className,
 }: ChartCardProps) {
@@ -57,7 +60,19 @@ export function ChartCard({
             {unit}
           </p>
         )}
-        <div style={{ height }}>{children()}</div>
+        {/* Phones get 80% of the height; the chart stays readable without dominating the screen. */}
+        <div
+          role="figure"
+          aria-label={ariaLabel ?? title}
+          className="h-[calc(var(--h)*0.8px)] sm:h-[calc(var(--h)*1px)]"
+          style={{ "--h": height } as CSSProperties}
+        >
+          <Suspense
+            fallback={<ChartSkeleton label={`Loading ${title}`} height="100%" shape={shape} />}
+          >
+            {children()}
+          </Suspense>
+        </div>
       </>
     );
 

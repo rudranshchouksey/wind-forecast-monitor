@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -20,7 +21,7 @@ import type {
   GroupRow,
   HorizonResponse,
   HorizonRow,
-} from "../api/types";
+} from "../../api/types";
 import {
   formatDeliveryDay,
   formatGwTick,
@@ -28,51 +29,33 @@ import {
   formatHours,
   formatMw,
   formatPct,
-} from "../lib/format";
-import { DataTable, Legend } from "./ChartCard";
-import { TooltipBox } from "./ChartTooltip";
-import { DataEndBar } from "./DataEndBar";
-import { bufferLineLabel } from "../lib/kpis";
-import { extent, niceTicks } from "../lib/ticks";
+} from "../../lib/format";
+import { bufferLineLabel } from "../../lib/kpis";
+import { chart } from "../../lib/theme";
+import { extent, niceTicks } from "../../lib/ticks";
+import { TooltipBox } from "../ChartTooltip";
+import { DataEndBar } from "../DataEndBar";
+import { DRAW_MS } from "./drawIn";
 
-const axisProps = { stroke: "var(--axis)", tickLine: false } as const;
+const axisProps = { stroke: chart.axis, tickLine: false } as const;
 const yAxisProps = {
   ...axisProps,
   axisLine: false,
-  width: 44,
+  width: 40,
   tickFormatter: formatGwTick,
 } as const;
+const barCursor = { fill: chart.raised, fillOpacity: 0.7 } as const;
+const refLabel = { fill: chart.text2, fontSize: 11, fontFamily: "var(--font-mono)" } as const;
+
 function yScale(values: (number | null)[]) {
   const [lo, hi] = extent(values);
   const ticks = niceTicks(Math.min(0, lo), Math.max(0, hi));
   return { ticks, domain: [ticks[0] ?? 0, ticks[ticks.length - 1] ?? 0] as [number, number] };
 }
 
-const signColor = (v: number) => (v > 0 ? "var(--shortfall)" : "var(--surplus)");
-
-export function SignLegend() {
-  return (
-    <Legend
-      items={[
-        { label: "Forecast above actual (shortfall)", color: "var(--shortfall)", kind: "box" },
-        { label: "Forecast below actual (surplus)", color: "var(--surplus)", kind: "box" },
-      ]}
-    />
-  );
-}
+const signColor = (v: number) => (v > 0 ? chart.shortfall : chart.surplus);
 
 // -- by horizon --------------------------------------------------------------------------------
-
-export function HorizonLegend() {
-  return (
-    <Legend
-      items={[
-        { label: "Mean absolute error", color: "var(--series-actual)" },
-        { label: "P90 shortfall", color: "var(--series-forecast)" },
-      ]}
-    />
-  );
-}
 
 interface HorizonPoint {
   h: number;
@@ -88,8 +71,8 @@ function HorizonTooltip({ active, payload }: TooltipProps<number, string>) {
     <TooltipBox
       title={`Forecast made ${formatHours(p.h)} ahead`}
       rows={[
-        { label: "mean absolute error", value: formatMw(p.mae), color: "var(--series-actual)" },
-        { label: "P90 shortfall", value: formatMw(p.p90), color: "var(--series-forecast)" },
+        { label: "mean absolute error", value: formatMw(p.mae), color: chart.actual },
+        { label: "P90 shortfall", value: formatMw(p.p90), color: chart.forecast },
       ]}
       footer={
         p.coverage < 0.99
@@ -107,21 +90,24 @@ const toHorizonPoint = (r: HorizonRow): HorizonPoint => ({
   coverage: r.coverage.ratio,
 });
 
-export function HorizonChart({
+export const HorizonChart = memo(function HorizonChart({
   data,
   selectedH,
+  drawIn = false,
 }: {
   data: HorizonResponse;
   selectedH: number | null;
+  drawIn?: boolean;
 }) {
-  const points = data.rows.map(toHorizonPoint);
+  const points = useMemo(() => data.rows.map(toHorizonPoint), [data]);
   const ref = data.reference;
-  const y = yScale(points.flatMap((p) => [p.mae, p.p90]));
+  const y = useMemo(() => yScale(points.flatMap((p) => [p.mae, p.p90])), [points]);
   const maxH = Math.max(...points.map((p) => p.h), 0);
   const xTicks = [0, 6, 12, 18, 24, 36, 48, 60, 72].filter((t) => t <= maxH);
+  const line = { strokeWidth: 2, isAnimationActive: drawIn, animationDuration: DRAW_MS } as const;
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={points} margin={{ top: 12, right: 16, bottom: 4, left: 0 }}>
+      <LineChart data={points} margin={{ top: 16, right: 16, bottom: 4, left: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="h"
@@ -132,63 +118,48 @@ export function HorizonChart({
           {...axisProps}
         />
         <YAxis {...yAxisProps} ticks={y.ticks} domain={y.domain} />
-        <Tooltip content={<HorizonTooltip />} cursor={{ stroke: "var(--axis)" }} />
+        <Tooltip
+          content={<HorizonTooltip />}
+          cursor={{ stroke: chart.muted, strokeDasharray: "3 3" }}
+          isAnimationActive={false}
+        />
         {selectedH !== null && (
           <ReferenceLine
             x={selectedH}
-            stroke="var(--ink-muted)"
+            stroke={chart.accent}
             strokeDasharray="0"
-            label={{ value: "selected", position: "top", fill: "var(--ink-muted)", fontSize: 11 }}
+            label={{ ...refLabel, value: "selected", position: "top", fill: chart.accent }}
           />
         )}
         <Line
           dataKey="mae"
-          stroke="var(--series-actual)"
-          strokeWidth={2}
-          dot={{ r: 4, fill: "var(--series-actual)", stroke: "var(--surface)", strokeWidth: 2 }}
-          isAnimationActive={false}
+          stroke={chart.actual}
+          dot={{ r: 3.5, fill: chart.actual, stroke: chart.panel, strokeWidth: 2 }}
+          {...line}
         />
         <Line
           dataKey="p90"
-          stroke="var(--series-forecast)"
-          strokeWidth={2}
-          dot={{ r: 4, fill: "var(--series-forecast)", stroke: "var(--surface)", strokeWidth: 2 }}
-          isAnimationActive={false}
+          stroke={chart.forecast}
+          dot={{ r: 3.5, fill: chart.forecast, stroke: chart.panel, strokeWidth: 2 }}
+          {...line}
         />
         {ref.metrics.mae_mw !== null && (
           <ReferenceDot
             x={ref.horizon_h}
             y={ref.metrics.mae_mw}
             r={6}
-            fill="var(--surface)"
-            stroke="var(--ink)"
+            fill={chart.panel}
+            stroke={chart.text}
             strokeWidth={2}
-            label={{ value: "at cutoff", position: "bottom", fill: "var(--ink-2)", fontSize: 11 }}
+            label={{ ...refLabel, value: "at cutoff", position: "bottom" }}
           />
         )}
       </LineChart>
     </ResponsiveContainer>
   );
-}
+});
 
-export function HorizonTable({ data }: { data: HorizonResponse }) {
-  return (
-    <DataTable
-      caption="Forecast error by lead time"
-      columns={["Lead time", "MAE", "RMSE", "Bias", "P90 shortfall", "Hours covered"]}
-      rows={data.rows.map((r) => [
-        formatHours(r.horizon_h),
-        formatMw(r.metrics.mae_mw),
-        formatMw(r.metrics.rmse_mw),
-        formatMw(r.metrics.bias_mw, { signed: true }),
-        formatMw(r.metrics.shortfall.p90_mw),
-        `${r.coverage.evaluated} (${formatPct(r.coverage.ratio)})`,
-      ])}
-    />
-  );
-}
-
-// -- by hour of day ----------------------------------------------------------------------------
+// -- by hour of day / by day -------------------------------------------------------------------
 
 interface GroupPoint {
   key: string;
@@ -226,9 +197,11 @@ function GroupTooltip({
   );
 }
 
-export function HourChart({ rows }: { rows: GroupRow[] }) {
-  const points = rows.map(toGroupPoint);
-  const y = yScale(points.map((p) => p.mae));
+const hourTitle = (k: string) => `${formatHourOfDay(k)} (London)`;
+
+export const HourChart = memo(function HourChart({ rows }: { rows: GroupRow[] }) {
+  const points = useMemo(() => rows.map(toGroupPoint), [rows]);
+  const y = useMemo(() => yScale(points.map((p) => p.mae)), [points]);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={points} margin={{ top: 8, right: 8, bottom: 4, left: 0 }} barCategoryGap={2}>
@@ -236,12 +209,13 @@ export function HourChart({ rows }: { rows: GroupRow[] }) {
         <XAxis dataKey="key" tickFormatter={formatHourOfDay} interval={2} {...axisProps} />
         <YAxis {...yAxisProps} ticks={y.ticks} domain={y.domain} />
         <Tooltip
-          content={<GroupTooltip title={(k) => `${formatHourOfDay(k)} (London)`} />}
-          cursor={{ fill: "var(--surface-2)" }}
+          content={<GroupTooltip title={hourTitle} />}
+          cursor={barCursor}
+          isAnimationActive={false}
         />
         <Bar
           dataKey="mae"
-          fill="var(--series-actual)"
+          fill={chart.actual}
           maxBarSize={24}
           shape={<DataEndBar />}
           isAnimationActive={false}
@@ -249,52 +223,24 @@ export function HourChart({ rows }: { rows: GroupRow[] }) {
       </BarChart>
     </ResponsiveContainer>
   );
-}
+});
 
-export function GroupTable({
-  rows,
-  keyLabel,
-  formatKey,
-}: {
-  rows: GroupRow[];
-  keyLabel: string;
-  formatKey: (k: string) => string;
-}) {
-  return (
-    <DataTable
-      caption={`Forecast error by ${keyLabel.toLowerCase()}`}
-      columns={[keyLabel, "MAE", "Bias", "P90 shortfall", "Hours"]}
-      rows={rows.map((g) => [
-        formatKey(g.key),
-        formatMw(g.metrics.mae_mw),
-        formatMw(g.metrics.bias_mw, { signed: true }),
-        formatMw(g.metrics.shortfall.p90_mw),
-        g.metrics.n,
-      ])}
-    />
-  );
-}
+const shortDay = (k: string) => formatDeliveryDay(k).split(" ").slice(1).join(" ");
 
-// -- by day ------------------------------------------------------------------------------------
-
-export function DayChart({ rows }: { rows: GroupRow[] }) {
-  const points = rows.map(toGroupPoint);
-  const y = yScale(points.map((p) => p.bias));
+export const DayChart = memo(function DayChart({ rows }: { rows: GroupRow[] }) {
+  const points = useMemo(() => rows.map(toGroupPoint), [rows]);
+  const y = useMemo(() => yScale(points.map((p) => p.bias)), [points]);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={points} margin={{ top: 8, right: 8, bottom: 4, left: 0 }} barCategoryGap={2}>
         <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="key"
-          tickFormatter={(k: string) => formatDeliveryDay(k).split(" ").slice(1).join(" ")}
-          minTickGap={16}
-          {...axisProps}
-        />
+        <XAxis dataKey="key" tickFormatter={shortDay} minTickGap={16} {...axisProps} />
         <YAxis {...yAxisProps} ticks={y.ticks} domain={y.domain} />
-        <ReferenceLine y={0} stroke="var(--axis)" />
+        <ReferenceLine y={0} stroke={chart.axis} />
         <Tooltip
           content={<GroupTooltip title={formatDeliveryDay} />}
-          cursor={{ fill: "var(--surface-2)" }}
+          cursor={barCursor}
+          isAnimationActive={false}
         />
         <Bar dataKey="bias" maxBarSize={24} shape={<DataEndBar />} isAnimationActive={false}>
           {points.map((p) => (
@@ -304,7 +250,7 @@ export function DayChart({ rows }: { rows: GroupRow[] }) {
       </BarChart>
     </ResponsiveContainer>
   );
-}
+});
 
 // -- histogram ---------------------------------------------------------------------------------
 
@@ -330,7 +276,7 @@ function BinTooltip({ active, payload }: TooltipProps<number, string>) {
   );
 }
 
-export function Histogram({
+export const Histogram = memo(function Histogram({
   data,
   bufferMw,
   basis = "total",
@@ -339,20 +285,26 @@ export function Histogram({
   bufferMw: number | null;
   basis?: BufferBasis;
 }) {
-  const points: BinPoint[] = data.bins.map((b) => ({
-    mid: (b.lower_mw + b.upper_mw) / 2,
-    lower: b.lower_mw,
-    upper: b.upper_mw,
-    count: b.count,
-    share: data.n ? b.count / data.n : 0,
-  }));
-  const edges = data.bins.flatMap((b) => [b.lower_mw, b.upper_mw]);
-  const xTicks = niceTicks(Math.min(...edges), Math.max(...edges), 6);
+  const points = useMemo(
+    (): BinPoint[] =>
+      data.bins.map((b) => ({
+        mid: (b.lower_mw + b.upper_mw) / 2,
+        lower: b.lower_mw,
+        upper: b.upper_mw,
+        count: b.count,
+        share: data.n ? b.count / data.n : 0,
+      })),
+    [data],
+  );
+  const xTicks = useMemo(() => {
+    const edges = data.bins.flatMap((b) => [b.lower_mw, b.upper_mw]);
+    return niceTicks(Math.min(...edges), Math.max(...edges), 6);
+  }, [data]);
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
         data={points}
-        margin={{ top: 16, right: 12, bottom: 4, left: 0 }}
+        margin={{ top: 20, right: 12, bottom: 4, left: 0 }}
         barCategoryGap={2}
       >
         <CartesianGrid vertical={false} />
@@ -367,23 +319,24 @@ export function Histogram({
             value: "GW error",
             position: "insideBottomRight",
             offset: -2,
-            fill: "var(--ink-muted)",
+            fill: chart.muted,
             fontSize: 11,
           }}
         />
         <YAxis {...axisProps} axisLine={false} width={36} allowDecimals={false} />
-        <Tooltip content={<BinTooltip />} cursor={{ fill: "var(--surface-2)" }} />
-        <ReferenceLine x={0} stroke="var(--axis)" />
+        <Tooltip content={<BinTooltip />} cursor={barCursor} isAnimationActive={false} />
+        <ReferenceLine x={0} stroke={chart.axis} />
         {bufferMw !== null && (
           <ReferenceLine
             x={bufferMw}
-            stroke="var(--ink)"
+            stroke={chart.text}
             strokeWidth={1.5}
+            strokeDasharray="4 3"
             label={{
+              ...refLabel,
               value: bufferLineLabel(bufferMw, basis),
               position: "top",
-              fill: "var(--ink)",
-              fontSize: 11,
+              fill: chart.text,
             }}
           />
         )}
@@ -395,18 +348,4 @@ export function Histogram({
       </BarChart>
     </ResponsiveContainer>
   );
-}
-
-export function HistogramTable({ data }: { data: DistributionResponse }) {
-  return (
-    <DataTable
-      caption="Distribution of forecast error"
-      columns={["Error range", "Hours", "Share"]}
-      rows={data.bins.map((b) => [
-        `${formatMw(b.lower_mw, { signed: true })} to ${formatMw(b.upper_mw, { signed: true })}`,
-        b.count,
-        formatPct(data.n ? b.count / data.n : 0),
-      ])}
-    />
-  );
-}
+});

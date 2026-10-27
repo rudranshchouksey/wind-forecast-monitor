@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
+  Area,
   Brush,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -11,11 +12,12 @@ import {
   type TooltipProps,
 } from "recharts";
 
-import type { SeriesPoint } from "../api/types";
-import { formatDay, formatGwTick, formatHours, formatLondon, formatMw } from "../lib/format";
-import { extent, niceTicks } from "../lib/ticks";
-import { DataTable, Legend } from "./ChartCard";
-import { TooltipBox } from "./ChartTooltip";
+import type { SeriesPoint } from "../../api/types";
+import { formatDay, formatGwTick, formatHours, formatLondon, formatMw } from "../../lib/format";
+import { chart } from "../../lib/theme";
+import { extent, niceTicks } from "../../lib/ticks";
+import { TooltipBox } from "../ChartTooltip";
+import { DRAW_MS } from "./drawIn";
 
 interface Row {
   t: number;
@@ -23,6 +25,8 @@ interface Row {
   forecast: number;
   corrected: number | null;
   error: number;
+  /** [low, high] of forecast and actual: the shaded gap. */
+  gap: [number, number];
   publish: string;
   horizon: number;
 }
@@ -34,6 +38,7 @@ function toRows(points: SeriesPoint[]): Row[] {
     forecast: p.forecast_mw,
     corrected: p.corrected_mw,
     error: p.error_mw,
+    gap: [Math.min(p.actual_mw, p.forecast_mw), Math.max(p.actual_mw, p.forecast_mw)],
     publish: p.publish_time,
     horizon: p.horizon_h,
   }));
@@ -41,26 +46,7 @@ function toRows(points: SeriesPoint[]): Row[] {
 
 // Derived series: dashed as well as coloured, so it never relies on hue alone.
 const CORRECTED_DASH = "6 3";
-
-export function MainLegend({ showCorrected = false }: { showCorrected?: boolean }) {
-  return (
-    <Legend
-      items={[
-        { label: "Actual (FUELHH, hourly mean)", color: "var(--series-actual)" },
-        { label: "Forecast available at decision time (WINDFOR)", color: "var(--series-forecast)" },
-        ...(showCorrected
-          ? [
-              {
-                label: "Bias-corrected forecast",
-                color: "var(--series-corrected)",
-                kind: "dash" as const,
-              },
-            ]
-          : []),
-      ]}
-    />
-  );
-}
+const activeDot = { r: 4, stroke: chart.panel, strokeWidth: 2 } as const;
 
 function MainTooltip({
   active,
@@ -74,16 +60,10 @@ function MainTooltip({
     <TooltipBox
       title={formatLondon(row.t)}
       rows={[
-        { label: "actual", value: formatMw(row.actual), color: "var(--series-actual)" },
-        { label: "forecast", value: formatMw(row.forecast), color: "var(--series-forecast)" },
+        { label: "actual", value: formatMw(row.actual), color: chart.actual },
+        { label: "forecast", value: formatMw(row.forecast), color: chart.forecast },
         ...(showCorrected
-          ? [
-              {
-                label: "bias-corrected",
-                value: formatMw(row.corrected),
-                color: "var(--series-corrected)",
-              },
-            ]
+          ? [{ label: "bias-corrected", value: formatMw(row.corrected), color: chart.corrected }]
           : []),
         { label: `error (${kind})`, value: formatMw(row.error, { signed: true }) },
       ]}
@@ -96,13 +76,19 @@ function MainTooltip({
   );
 }
 
-export function MainChart({
-  points,
-  showCorrected = false,
-}: {
+export interface MainChartProps {
   points: SeriesPoint[];
   showCorrected?: boolean;
-}) {
+  /** Draw the lines in (first render only; off under reduced motion). */
+  drawIn?: boolean;
+}
+
+/** Memoised: hovering only re-renders Recharts' own tooltip layer, never the page. */
+export const MainChart = memo(function MainChart({
+  points,
+  showCorrected = false,
+  drawIn = false,
+}: MainChartProps) {
   const rows = useMemo(() => toRows(points), [points]);
   const yTicks = useMemo(
     () =>
@@ -112,9 +98,19 @@ export function MainChart({
       ),
     [rows, showCorrected],
   );
+  const anim = {
+    isAnimationActive: drawIn,
+    animationDuration: DRAW_MS,
+    animationEasing: "ease-out",
+  } as const;
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+      <ComposedChart
+        data={rows}
+        margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+        aria-label="Line chart of hourly actual and forecast wind generation; use Show table for the numbers"
+        role="img"
+      >
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="t"
@@ -123,50 +119,59 @@ export function MainChart({
           domain={["dataMin", "dataMax"]}
           tickFormatter={formatDay}
           minTickGap={40}
-          stroke="var(--axis)"
+          stroke={chart.axis}
           tickLine={false}
         />
         <YAxis
           ticks={yTicks}
           domain={[0, yTicks[yTicks.length - 1] ?? "auto"]}
           tickFormatter={formatGwTick}
-          width={44}
-          stroke="var(--axis)"
+          width={40}
+          stroke={chart.axis}
           tickLine={false}
           axisLine={false}
         />
         <Tooltip
           content={<MainTooltip showCorrected={showCorrected} />}
-          cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
+          cursor={{ stroke: chart.muted, strokeWidth: 1, strokeDasharray: "3 3" }}
+          isAnimationActive={false}
+        />
+        <Area
+          dataKey="gap"
+          stroke="none"
+          fill={chart.gapFill}
+          fillOpacity={1}
+          activeDot={false}
+          isAnimationActive={false}
         />
         <Line
           dataKey="actual"
           name="Actual"
-          stroke="var(--series-actual)"
+          stroke={chart.actual}
           strokeWidth={2}
           dot={false}
-          activeDot={{ r: 4, stroke: "var(--surface)", strokeWidth: 2 }}
-          isAnimationActive={false}
+          activeDot={activeDot}
+          {...anim}
         />
         <Line
           dataKey="forecast"
           name="Forecast"
-          stroke="var(--series-forecast)"
+          stroke={chart.forecast}
           strokeWidth={2}
           dot={false}
-          activeDot={{ r: 4, stroke: "var(--surface)", strokeWidth: 2 }}
-          isAnimationActive={false}
+          activeDot={activeDot}
+          {...anim}
         />
         {showCorrected && (
           <Line
             dataKey="corrected"
             name="Bias-corrected"
-            stroke="var(--series-corrected)"
+            stroke={chart.corrected}
             strokeWidth={2}
             strokeDasharray={CORRECTED_DASH}
             dot={false}
             connectNulls={false}
-            activeDot={{ r: 4, stroke: "var(--surface)", strokeWidth: 2 }}
+            activeDot={activeDot}
             isAnimationActive={false}
           />
         )}
@@ -175,38 +180,11 @@ export function MainChart({
           height={28}
           travellerWidth={8}
           tickFormatter={formatDay}
-          stroke="var(--axis)"
-          fill="var(--surface)"
+          stroke={chart.axis}
+          fill={chart.raised}
           aria-label="Zoom: drag the handles to choose a time window"
         />
-      </LineChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
-}
-
-export function MainTable({ points }: { points: SeriesPoint[] }) {
-  const hasCorrected = points.some((p) => p.corrected_mw !== null);
-  return (
-    <DataTable
-      caption="Hourly actual and forecast wind generation"
-      columns={[
-        "Time (London)",
-        "Actual",
-        "Forecast",
-        ...(hasCorrected ? ["Bias-corrected"] : []),
-        "Error",
-        "Published",
-        "Lead time",
-      ]}
-      rows={points.map((p) => [
-        formatLondon(p.target_time),
-        formatMw(p.actual_mw),
-        formatMw(p.forecast_mw),
-        ...(hasCorrected ? [formatMw(p.corrected_mw)] : []),
-        formatMw(p.error_mw, { signed: true }),
-        formatLondon(p.publish_time),
-        formatHours(p.horizon_h),
-      ])}
-    />
-  );
-}
+});

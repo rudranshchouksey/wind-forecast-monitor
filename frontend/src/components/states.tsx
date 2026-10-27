@@ -142,7 +142,7 @@ export function ChartSkeleton({
   shape = "line",
 }: {
   label: string;
-  height?: number;
+  height?: number | string;
   shape?: "line" | "bars";
 }) {
   return (
