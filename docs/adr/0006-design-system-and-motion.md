@@ -26,20 +26,26 @@ was. It also had to stay fast, accessible and cheap to run on a free CDN. The ap
   - No third-party font request, which is better for privacy and for Lighthouse "best practices".
   - Variable weights in one file per script subset.
   - The browser fetches only the subsets a page uses.
-- **`motion` (Framer Motion) for one job only:** the shared-layout slide of the segmented-control
-  indicator. Everything else uses cheaper mechanisms:
+- **`motion` (Framer Motion) for one job only:** the slide of the segmented-control indicator,
+  using `motion/mini`'s `animate`. That is a small helper over the Web Animations API, so the slide
+  runs off the main thread. The selected label is measured only when the value changes.
+  Everything else uses cheaper mechanisms:
   - **Number tweens:** a 20-line rAF loop that writes to the DOM node, so it never re-renders
     React.
   - **Card entry:** a CSS animation, so content is never stuck invisible if script is slow.
   - **Line draw-in:** Recharts' own animation, enabled for the first render only.
-  - `LazyMotion` loads motion's features as a separate chunk after first paint, which keeps motion
-    out of the initial bundle (it cost 47 kB gzip when imported directly).
+- **Revised after measuring.** The first build used motion's React layout animations (`LazyMotion`
+  with a `layoutId` indicator).
+  - A load profile showed motion's `measureScroll` taking 762 ms under a 4× CPU slowdown: layout
+    projection re-measures on every React commit, and each resolving query is a commit.
+  - Imported directly, motion's React build added 47 kB gzip.
+  - `motion/mini` keeps the slide with neither cost, and dropped the 28 kB features chunk.
 - **One signature element with a CPU budget.** The wind-flow canvas runs at 20 fps and half
   resolution, with strokes batched into 8 paths per frame. A timer schedules each frame, not every
   vsync. It pauses when the tab is hidden or the canvas is off-screen, and draws one static frame
   under reduced motion.
-- **Reduced motion is a first-class mode.** `MotionConfig reducedMotion="user"` plus one
-  `usePrefersReducedMotion()` hook turn every animation off and show final values immediately.
+- **Reduced motion is a first-class mode.** One `usePrefersReducedMotion()` hook (and the CSS
+  `prefers-reduced-motion` rule) turns every animation off and shows final values immediately.
   Tests cover it.
 - **Budgets enforced in CI:**
   - initial JS ≤ 130 kB gzip, total JS ≤ 260 kB, CSS ≤ 15 kB (`scripts/check-bundle.mjs`);
@@ -47,9 +53,9 @@ was. It also had to stay fast, accessible and cheap to run on a free CDN. The ap
     along.
 
 ## Measurements
-- **Initial JS:** 91.7 kB gzip, down from 175.7 kB (one 607 kB chunk) before the redesign.
-- **Total JS:** 234.2 kB gzip. Recharts (109.8 kB) and motion's features (28.4 kB) load after
-  first paint.
+- **Initial JS:** 81.6 kB gzip, down from 175.7 kB (one 607 kB chunk) before the redesign.
+- **Total JS:** 195.7 kB gzip. Recharts (109.8 kB) loads after first paint, with the charts.
+- **Layout shift:** CLS 0 in every live Lighthouse run, after giving skeletons the loaded geometry.
 - **Wind field CPU:** 1.6–1.8 % main-thread CPU at 1440×900 in Edge, measured as the change in
   DevTools `TaskDuration` over wall time against the reduced-motion baseline (0.01 %). That was
   after cutting it from 4.2 %: timer wake-ups, batched strokes and 20 fps.

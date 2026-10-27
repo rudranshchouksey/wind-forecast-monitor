@@ -146,21 +146,30 @@ The brief is [docs/design.md](design.md); the choices are recorded in
 - **Card entry:** a CSS animation on first load only, so content is never left hidden waiting for
   script.
 - **Lines:** draw in on first render only (`useDrawOnce`).
-- **Segmented controls:** the indicator slides via `LazyMotion` `layoutId`; motion's features load
-  as their own chunk.
+- **Segmented controls:** the indicator slides with `motion/mini`'s `animate` (Web Animations API).
+  The selected label is measured only when the value changes or the group resizes, never on
+  unrelated renders. (motion's React `layoutId` re-measured on every commit; see ADR 0006.)
 - **Wind field:** `WindField.tsx` is a half-resolution canvas at 20 fps with batched strokes, woken
-  by a timer rather than every vsync. It pauses when hidden or off-screen.
-- **Reduced motion:** `MotionConfig reducedMotion="user"` plus `usePrefersReducedMotion()` turn all
-  of it off and show final values.
+  by a timer rather than every vsync. It starts once the page has loaded and the browser is idle,
+  and pauses when hidden or off-screen.
+- **Reduced motion:** `usePrefersReducedMotion()` and the CSS `prefers-reduced-motion` rule turn
+  all of it off and show final values.
 
 **Performance.**
 - **Lazy charts:** the chart components are lazy (`charts/lazy.ts`) and preloaded once the metadata
   arrives. Recharts and React are split into their own chunks, so Recharts never blocks first
   paint.
-- **Memoisation:** charts and derived rows are memoised, and hover state stays local to Recharts
-  and the sparkline.
-- **Budget:** `scripts/check-bundle.mjs` enforces it in CI: initial JS ≤ 130 kB gzip (now 91.7 kB,
-  previously 175.7 kB in one chunk), total ≤ 260 kB (now 234.2 kB), CSS ≤ 15 kB (8.4 kB).
+- **Deferred mounting:** each chart mounts only when its card comes within 400 px of the viewport
+  (`lib/useNearViewport.ts`).
+- **Fast first paint:** `index.html` carries a static copy of the header and intro, so first paint
+  doesn't wait for script.
+- **No layout shift:** skeletons have the loaded geometry, and they pulse opacity only (compositor,
+  no repaint).
+- **Memoisation:** charts, derived rows, the hero, the KPI tiles and the static sections are
+  memoised. Hover state stays local to Recharts and the sparkline, and focus rings use sibling
+  selectors, not `:has()`.
+- **Budget:** `scripts/check-bundle.mjs` enforces it in CI: initial JS ≤ 130 kB gzip (now 81.6 kB,
+  previously 175.7 kB in one chunk), total ≤ 260 kB (now 195.7 kB), CSS ≤ 15 kB (8.5 kB).
 
 **Accessibility.**
 - **Structure:** a skip link, landmarks, and charts as labelled figures, each with a table view.

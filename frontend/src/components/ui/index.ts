@@ -24,4 +24,3 @@ export { Stat, type StatProps } from "./Stat";
 export { Switch, type SwitchProps } from "./Switch";
 export { InfoTip, Tooltip, type TooltipProps } from "./Tooltip";
 export { Reveal } from "./Reveal";
-export { SegmentIndicator } from "./SegmentIndicator";

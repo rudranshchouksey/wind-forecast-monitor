@@ -67,19 +67,19 @@ describe("SegmentedControl", () => {
     expect(onChange).toHaveBeenCalledWith("b");
   });
 
-  it("renders a custom indicator only behind the selected option", () => {
-    render(
-      <SegmentedControl
-        legend="Pick"
-        value="b"
-        options={options}
-        onChange={() => undefined}
-        indicator={({ layoutId }) => <span data-testid="ind" data-layout={layoutId} />}
-      />,
+  it("has one indicator for the group, placed on the selected option", () => {
+    const { container, rerender } = render(
+      <SegmentedControl legend="Pick" value="a" options={options} onChange={() => undefined} />,
     );
-    const ind = screen.getAllByTestId("ind");
+    const ind = container.querySelectorAll<HTMLElement>("[data-segment-indicator]");
     expect(ind).toHaveLength(1);
-    expect(ind[0]?.closest("label")).toHaveTextContent("Beta");
+    // jsdom has no layout, so offsets are 0; the indicator is still sized and positioned inline.
+    expect(ind[0]?.style.transform).toBe("translate(0px, 0px)");
+    rerender(
+      <SegmentedControl legend="Pick" value="b" options={options} onChange={() => undefined} />,
+    );
+    expect(container.querySelectorAll("[data-segment-indicator]")).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: "Beta" })).toBeChecked();
   });
 });
 
