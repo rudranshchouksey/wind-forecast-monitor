@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -137,5 +137,83 @@ describe("App", () => {
       cutoffTime: "09:20",
       horizonH: 24,
     });
+  });
+
+  it("opens a view from the URL and writes control changes back to it", async () => {
+    window.history.replaceState(null, "", "/?cutoff=09:50&basis=random&p=95");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
+    renderApp();
+    await screen.findByText(/plan on 4,098 MW less wind/);
+    expect(screen.getByLabelText(/Decision cutoff/)).toHaveValue("09:50");
+    expect(screen.getByLabelText("Random error only")).toBeChecked();
+    expect(screen.getByLabelText("Buffer covers")).toHaveValue("95");
+    expect(
+      fetchSpy.mock.calls.some(
+        ([u]) =>
+          typeof u === "string" &&
+          u.includes("/metrics?") &&
+          u.includes("cutoff_time=09%3A50") &&
+          u.includes("percentile=95") &&
+          u.includes("buffer_basis=random"),
+      ),
+    ).toBe(true);
+
+    await userEvent.click(screen.getByLabelText("Include systematic offset"));
+    expect(window.location.search).toBe("?cutoff=09%3A50&p=95");
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    expect(window.location.search).toBe("");
+  });
+
+  it("restores the controls on Back", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
+    renderApp();
+    await screen.findByText(/plan on 4,098 MW less wind/);
+    await userEvent.click(screen.getByLabelText("At fixed lead time"));
+    expect(window.location.search).toBe("?mode=horizon");
+    act(() => {
+      window.history.replaceState(null, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(screen.getByLabelText("At decision cutoff")).toBeChecked();
+  });
+
+  it("supports keyboard shortcuts and a help overlay", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
+    renderApp();
+    await screen.findByText(/plan on 4,098 MW less wind/);
+
+    await userEvent.keyboard("2");
+    expect(screen.getByLabelText(/Decision cutoff/)).toHaveValue("09:50");
+    await userEvent.keyboard("m");
+    expect(screen.getByLabelText("At fixed lead time")).toBeChecked();
+    await userEvent.keyboard("b");
+    expect(screen.getByLabelText("Random error only")).toBeChecked();
+    expect(screen.getByText("Random error only", { selector: "p" })).toBeInTheDocument();
+    await userEvent.keyboard("r");
+    expect(window.location.search).toBe("");
+
+    const opener = screen.getByRole("button", { name: "Keyboard shortcuts" });
+    await userEvent.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(dialog).toHaveTextContent("Cutoff: Nord Pool N2EX (09:50)");
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    // Shortcuts are paused while the dialog is open.
+    await userEvent.keyboard("m");
+    expect(screen.getByLabelText("At decision cutoff")).toBeChecked();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(opener).toHaveFocus();
+
+    await userEvent.keyboard("?");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("ignores shortcuts while typing in a field", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(mockApi());
+    renderApp();
+    await screen.findByText(/plan on 4,098 MW less wind/);
+    screen.getByLabelText(/Decision cutoff/).focus();
+    await userEvent.keyboard("m");
+    expect(screen.getByLabelText("At decision cutoff")).toBeChecked();
   });
 });

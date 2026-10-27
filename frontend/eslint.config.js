@@ -5,7 +5,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "coverage"] },
+  { ignores: ["dist", "coverage", "playwright-report", "test-results"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
     files: ["**/*.{ts,tsx}"],
@@ -21,5 +21,6 @@ export default tseslint.config(
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
     },
   },
-  { files: ["eslint.config.js"], ...tseslint.configs.disableTypeChecked },
+  { files: ["eslint.config.js", "scripts/**/*.mjs"], ...tseslint.configs.disableTypeChecked },
+  { files: ["scripts/**/*.mjs"], languageOptions: { globals: globals.node } },
 );

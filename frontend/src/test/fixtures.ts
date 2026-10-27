@@ -123,7 +123,13 @@ export const byHour: GroupedResponse = {
 export const byDay: GroupedResponse = {
   query,
   group_by: "day",
-  rows: [{ key: "2026-01-02", metrics: errorMetrics }],
+  rows: [
+    { key: "2026-01-02", metrics: errorMetrics },
+    {
+      key: "2026-01-03",
+      metrics: { ...errorMetrics, mae_mw: 1800, bias_mw: -200, rmse_mw: 2100 },
+    },
+  ],
 };
 
 export const distribution: DistributionResponse = {
