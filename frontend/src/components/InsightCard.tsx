@@ -1,16 +1,16 @@
-import type { ReactNode } from "react";
-
 import type { DistributionResponse, MetricsResponse } from "../api/types";
 import { formatHours, formatMw, formatPct } from "../lib/format";
 import { bufferLineLabel, buildTiles } from "../lib/kpis";
 import { MiniDistribution } from "./MiniDistribution";
-import { Skeleton, cx } from "./ui";
+import { AnimatedNumber, Skeleton, cx } from "./ui";
 
 /** Splits "4,098 MW" into the number and its unit, so the unit can be set smaller. */
 function splitUnit(s: string): [string, string] {
   const i = s.lastIndexOf(" ");
   return i > 0 ? [s.slice(0, i), s.slice(i + 1)] : [s, ""];
 }
+
+const numberOnly = (v: number | null) => splitUnit(formatMw(v))[0];
 
 export function HeroSkeleton() {
   return (
@@ -36,20 +36,16 @@ export function HeroSkeleton() {
 export function InsightCard({
   data,
   distribution,
-  renderNumber,
   className,
 }: {
   data: MetricsResponse | undefined;
   distribution?: DistributionResponse;
-  /** Renders the big number; the motion layer passes an animated counter. */
-  renderNumber?: (raw: number | null, format: (v: number | null) => string) => ReactNode;
   className?: string;
 }) {
   if (!data) return <HeroSkeleton />;
   const { insight, query, mean_horizon_h, coverage } = data;
   const buffer = buildTiles(data)[0];
   const [, unit] = splitUnit(formatMw(insight.buffer_mw));
-  const numberOnly = (v: number | null) => splitUnit(formatMw(v))[0];
   const basis =
     query.mode === "cutoff"
       ? `Forecasts available at ${query.cutoff_time} London the day before delivery (on average ${formatHours(mean_horizon_h)} ahead).`
@@ -58,7 +54,7 @@ export function InsightCard({
     <section
       aria-labelledby="insight-heading"
       className={cx(
-        "relative overflow-hidden rounded-card border border-line bg-panel/80 shadow-card backdrop-blur-[2px]",
+        "relative overflow-hidden rounded-card border border-line bg-panel/80 shadow-card",
         className,
       )}
     >
@@ -72,9 +68,7 @@ export function InsightCard({
           </h2>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="font-mono text-[2.5rem] leading-none font-semibold tracking-[-0.02em] text-ink sm:text-display">
-              {renderNumber
-                ? renderNumber(insight.buffer_mw, numberOnly)
-                : numberOnly(insight.buffer_mw)}
+              <AnimatedNumber value={insight.buffer_mw} format={numberOnly} />
             </span>
             <span className="font-mono text-title font-medium text-ink-2">{unit}</span>
           </div>

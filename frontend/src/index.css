@@ -278,6 +278,17 @@ body {
   }
 }
 
+/* First-load card entry (<Reveal>): 12 px rise and fade, staggered by animation-delay. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.reveal {
+  animation: reveal var(--duration-slow) var(--ease-out-expo) both;
+}
+
 /* Shaped skeleton shimmer; off under reduced motion. */
 @keyframes shimmer {
   from {

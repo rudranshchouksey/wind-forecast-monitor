@@ -35,7 +35,7 @@ import { chart } from "../../lib/theme";
 import { extent, niceTicks } from "../../lib/ticks";
 import { TooltipBox } from "../ChartTooltip";
 import { DataEndBar } from "../DataEndBar";
-import { DRAW_MS } from "./drawIn";
+import { DRAW_MS, useDrawOnce } from "./drawIn";
 
 const axisProps = { stroke: chart.axis, tickLine: false } as const;
 const yAxisProps = {
@@ -93,12 +93,11 @@ const toHorizonPoint = (r: HorizonRow): HorizonPoint => ({
 export const HorizonChart = memo(function HorizonChart({
   data,
   selectedH,
-  drawIn = false,
 }: {
   data: HorizonResponse;
   selectedH: number | null;
-  drawIn?: boolean;
 }) {
+  const drawIn = useDrawOnce();
   const points = useMemo(() => data.rows.map(toHorizonPoint), [data]);
   const ref = data.reference;
   const y = useMemo(() => yScale(points.flatMap((p) => [p.mae, p.p90])), [points]);

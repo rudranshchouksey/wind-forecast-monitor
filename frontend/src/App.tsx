@@ -31,8 +31,10 @@ import { Explainer } from "./components/Explainer";
 import { HeroSkeleton, InsightCard } from "./components/InsightCard";
 import { KpiTiles } from "./components/KpiTiles";
 import { ErrorState } from "./components/states";
-import { Card, Skeleton } from "./components/ui";
+import { Card, Reveal, Skeleton } from "./components/ui";
+import { WindField } from "./components/WindField";
 import { formatDeliveryDay, formatHourOfDay } from "./lib/format";
+import { endFirstLoadSoon } from "./lib/motion";
 import { defaultParams } from "./lib/params";
 
 const HISTOGRAM_BIN_MW = 500;
@@ -71,6 +73,10 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
   const bias = useBias(params);
 
   useEffect(preloadCharts, []);
+  // Card entry and line draw-in play once, while the first data arrives.
+  useEffect(() => {
+    if (metrics.data) endFirstLoadSoon();
+  }, [metrics.data]);
 
   const modeLabel =
     params.mode === "cutoff"
@@ -109,135 +115,155 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
           </Card>
         ) : (
           <div className="space-y-4">
-            <InsightCard data={metrics.data} distribution={dist.data} />
-            <KpiTiles data={metrics.data} isLoading={metrics.isLoading} daily={day.data?.rows} />
+            <Reveal index={0}>
+              <InsightCard data={metrics.data} distribution={dist.data} />
+            </Reveal>
+            <Reveal index={1}>
+              <KpiTiles data={metrics.data} isLoading={metrics.isLoading} daily={day.data?.rows} />
+            </Reveal>
           </div>
         )}
 
         <div className="space-y-4">
-          <ChartCard
-            title="Actual vs forecast"
-            subtitle={`Hourly national wind generation; ${modeLabel}`}
-            ariaLabel="Line chart of hourly actual and forecast wind generation, with the gap between them shaded. Use Show table for the numbers."
-            isLoading={series.isLoading}
-            isRefreshing={series.isPlaceholderData}
-            error={series.error}
-            isEmpty={series.data?.points.length === 0}
-            onRetry={() => void series.refetch()}
-            legend={<MainLegend showCorrected={corrected} />}
-            unit="GW"
-            height={360}
-            table={() => <MainTable points={series.data?.points ?? []} />}
-          >
-            {() => <MainChart points={series.data?.points ?? []} showCorrected={corrected} />}
-          </ChartCard>
+          <Reveal index={2}>
+            <ChartCard
+              title="Actual vs forecast"
+              subtitle={`Hourly national wind generation; ${modeLabel}`}
+              ariaLabel="Line chart of hourly actual and forecast wind generation, with the gap between them shaded. Use Show table for the numbers."
+              isLoading={series.isLoading}
+              isRefreshing={series.isPlaceholderData}
+              error={series.error}
+              isEmpty={series.data?.points.length === 0}
+              onRetry={() => void series.refetch()}
+              legend={<MainLegend showCorrected={corrected} />}
+              unit="GW"
+              height={360}
+              table={() => <MainTable points={series.data?.points ?? []} />}
+            >
+              {() => <MainChart points={series.data?.points ?? []} showCorrected={corrected} />}
+            </ChartCard>
+          </Reveal>
 
-          <CorrectionPanel
-            data={correction.data}
-            show={showCorrected}
-            onToggle={setShowCorrected}
-            available={cutoffMode}
-          />
+          <Reveal index={3}>
+            <CorrectionPanel
+              data={correction.data}
+              show={showCorrected}
+              onToggle={setShowCorrected}
+              available={cutoffMode}
+            />
+          </Reveal>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <ChartCard
-            title="Error by forecast lead time"
-            subtitle="How accuracy improves as the forecast gets closer to delivery"
-            ariaLabel="Line chart of mean absolute error and P90 shortfall by forecast lead time"
-            unit="GW"
-            isLoading={horizon.isLoading}
-            isRefreshing={horizon.isPlaceholderData}
-            error={horizon.error}
-            isEmpty={horizon.data?.rows.length === 0}
-            onRetry={() => void horizon.refetch()}
-            legend={<HorizonLegend />}
-            table={() => (horizon.data ? <HorizonTable data={horizon.data} /> : null)}
-          >
-            {() =>
-              horizon.data && (
-                <HorizonChart
-                  data={horizon.data}
-                  selectedH={params.mode === "horizon" ? params.horizonH : null}
+          <Reveal index={4}>
+            <ChartCard
+              title="Error by forecast lead time"
+              subtitle="How accuracy improves as the forecast gets closer to delivery"
+              ariaLabel="Line chart of mean absolute error and P90 shortfall by forecast lead time"
+              unit="GW"
+              isLoading={horizon.isLoading}
+              isRefreshing={horizon.isPlaceholderData}
+              error={horizon.error}
+              isEmpty={horizon.data?.rows.length === 0}
+              onRetry={() => void horizon.refetch()}
+              legend={<HorizonLegend />}
+              table={() => (horizon.data ? <HorizonTable data={horizon.data} /> : null)}
+            >
+              {() =>
+                horizon.data && (
+                  <HorizonChart
+                    data={horizon.data}
+                    selectedH={params.mode === "horizon" ? params.horizonH : null}
+                  />
+                )
+              }
+            </ChartCard>
+          </Reveal>
+
+          <Reveal index={5}>
+            <ChartCard
+              title="Error distribution"
+              subtitle={`Hours by size of miss (forecast − actual), ${HISTOGRAM_BIN_MW} MW bins`}
+              ariaLabel="Histogram of hourly forecast error with the suggested buffer marked"
+              shape="bars"
+              isLoading={dist.isLoading}
+              isRefreshing={dist.isPlaceholderData}
+              error={dist.error}
+              isEmpty={dist.data?.n === 0}
+              onRetry={() => void dist.refetch()}
+              legend={<SignLegend />}
+              unit="Hours"
+              table={() => (dist.data ? <HistogramTable data={dist.data} /> : null)}
+            >
+              {() =>
+                dist.data && (
+                  <Histogram
+                    data={dist.data}
+                    bufferMw={metrics.data?.insight.buffer_mw ?? null}
+                    basis={metrics.data?.insight.basis ?? basis}
+                  />
+                )
+              }
+            </ChartCard>
+          </Reveal>
+
+          <Reveal index={6}>
+            <ChartCard
+              title="Error by hour of day"
+              subtitle="Mean absolute error by delivery hour, UK time"
+              ariaLabel="Bar chart of mean absolute error by hour of day"
+              shape="bars"
+              unit="GW"
+              isLoading={hour.isLoading}
+              isRefreshing={hour.isPlaceholderData}
+              error={hour.error}
+              isEmpty={hour.data?.rows.length === 0}
+              onRetry={() => void hour.refetch()}
+              table={() => (
+                <GroupTable
+                  rows={hour.data?.rows ?? []}
+                  keyLabel="Hour"
+                  formatKey={formatHourOfDay}
                 />
-              )
-            }
-          </ChartCard>
+              )}
+            >
+              {() => <HourChart rows={hour.data?.rows ?? []} />}
+            </ChartCard>
+          </Reveal>
 
-          <ChartCard
-            title="Error distribution"
-            subtitle={`Hours by size of miss (forecast − actual), ${HISTOGRAM_BIN_MW} MW bins`}
-            ariaLabel="Histogram of hourly forecast error with the suggested buffer marked"
-            shape="bars"
-            isLoading={dist.isLoading}
-            isRefreshing={dist.isPlaceholderData}
-            error={dist.error}
-            isEmpty={dist.data?.n === 0}
-            onRetry={() => void dist.refetch()}
-            legend={<SignLegend />}
-            unit="Hours"
-            table={() => (dist.data ? <HistogramTable data={dist.data} /> : null)}
-          >
-            {() =>
-              dist.data && (
-                <Histogram
-                  data={dist.data}
-                  bufferMw={metrics.data?.insight.buffer_mw ?? null}
-                  basis={metrics.data?.insight.basis ?? basis}
+          <Reveal index={7}>
+            <ChartCard
+              title="Bias by delivery day"
+              subtitle="Average forecast − actual for each day"
+              ariaLabel="Bar chart of average forecast minus actual for each delivery day"
+              shape="bars"
+              unit="GW"
+              isLoading={day.isLoading}
+              isRefreshing={day.isPlaceholderData}
+              error={day.error}
+              isEmpty={day.data?.rows.length === 0}
+              onRetry={() => void day.refetch()}
+              legend={<SignLegend />}
+              table={() => (
+                <GroupTable
+                  rows={day.data?.rows ?? []}
+                  keyLabel="Day"
+                  formatKey={formatDeliveryDay}
                 />
-              )
-            }
-          </ChartCard>
-
-          <ChartCard
-            title="Error by hour of day"
-            subtitle="Mean absolute error by delivery hour, UK time"
-            ariaLabel="Bar chart of mean absolute error by hour of day"
-            shape="bars"
-            unit="GW"
-            isLoading={hour.isLoading}
-            isRefreshing={hour.isPlaceholderData}
-            error={hour.error}
-            isEmpty={hour.data?.rows.length === 0}
-            onRetry={() => void hour.refetch()}
-            table={() => (
-              <GroupTable
-                rows={hour.data?.rows ?? []}
-                keyLabel="Hour"
-                formatKey={formatHourOfDay}
-              />
-            )}
-          >
-            {() => <HourChart rows={hour.data?.rows ?? []} />}
-          </ChartCard>
-
-          <ChartCard
-            title="Bias by delivery day"
-            subtitle="Average forecast − actual for each day"
-            ariaLabel="Bar chart of average forecast minus actual for each delivery day"
-            shape="bars"
-            unit="GW"
-            isLoading={day.isLoading}
-            isRefreshing={day.isPlaceholderData}
-            error={day.error}
-            isEmpty={day.data?.rows.length === 0}
-            onRetry={() => void day.refetch()}
-            legend={<SignLegend />}
-            table={() => (
-              <GroupTable
-                rows={day.data?.rows ?? []}
-                keyLabel="Day"
-                formatKey={formatDeliveryDay}
-              />
-            )}
-          >
-            {() => <DayChart rows={day.data?.rows ?? []} />}
-          </ChartCard>
+              )}
+            >
+              {() => <DayChart rows={day.data?.rows ?? []} />}
+            </ChartCard>
+          </Reveal>
         </div>
 
         <div className="space-y-4">
-          <BiasNote data={bias.data} />
-          <Explainer />
+          <Reveal index={8}>
+            <BiasNote data={bias.data} />
+          </Reveal>
+          <Reveal index={9}>
+            <Explainer />
+          </Reveal>
         </div>
       </main>
     </>
@@ -260,7 +286,13 @@ function DashboardSkeleton() {
 export function App() {
   const meta = useMeta();
   return (
-    <div className="relative flex min-h-dvh flex-col">
+    <div className="relative isolate flex min-h-dvh flex-col">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[680px] [mask-image:linear-gradient(to_bottom,black_45%,transparent)]"
+      >
+        <WindField className="h-full w-full" />
+      </div>
       <a
         href="#main"
         className="sr-only z-50 rounded-control bg-panel px-3 py-2 text-body text-ink focus:not-sr-only focus:fixed focus:top-2 focus:left-2"

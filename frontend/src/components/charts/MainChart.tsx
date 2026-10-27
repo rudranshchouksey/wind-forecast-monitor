@@ -17,7 +17,7 @@ import { formatDay, formatGwTick, formatHours, formatLondon, formatMw } from "..
 import { chart } from "../../lib/theme";
 import { extent, niceTicks } from "../../lib/ticks";
 import { TooltipBox } from "../ChartTooltip";
-import { DRAW_MS } from "./drawIn";
+import { DRAW_MS, useDrawOnce } from "./drawIn";
 
 interface Row {
   t: number;
@@ -79,16 +79,14 @@ function MainTooltip({
 export interface MainChartProps {
   points: SeriesPoint[];
   showCorrected?: boolean;
-  /** Draw the lines in (first render only; off under reduced motion). */
-  drawIn?: boolean;
 }
 
 /** Memoised: hovering only re-renders Recharts' own tooltip layer, never the page. */
 export const MainChart = memo(function MainChart({
   points,
   showCorrected = false,
-  drawIn = false,
 }: MainChartProps) {
+  const drawIn = useDrawOnce();
   const rows = useMemo(() => toRows(points), [points]);
   const yTicks = useMemo(
     () =>

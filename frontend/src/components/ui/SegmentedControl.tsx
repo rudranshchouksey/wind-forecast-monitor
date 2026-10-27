@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react";
 
 import { cx, focusRingWithin } from "./cx";
+import { SegmentIndicator } from "./SegmentIndicator";
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -16,7 +17,7 @@ export interface SegmentedControlProps<T extends string> {
   onChange: (v: T) => void;
   name?: string;
   className?: string;
-  /** Render the indicator; the motion layer swaps in an animated one (see SegmentIndicator). */
+  /** Override the selected-segment background (default: the sliding SegmentIndicator). */
   indicator?: (props: { layoutId: string }) => ReactNode;
 }
 
@@ -57,10 +58,7 @@ export function SegmentedControl<T extends string>({
                 (indicator ? (
                   indicator({ layoutId: `${groupName}-indicator` })
                 ) : (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-[4px] border border-line-strong bg-raised"
-                  />
+                  <SegmentIndicator layoutId={`${groupName}-indicator`} />
                 ))}
               <input
                 type="radio"

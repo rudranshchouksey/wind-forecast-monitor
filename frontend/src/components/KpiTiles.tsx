@@ -1,9 +1,9 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 
 import type { GroupRow, MetricsResponse } from "../api/types";
 import { buildTiles } from "../lib/kpis";
 import { Sparkline, type SparkPoint } from "./Sparkline";
-import { Badge, Skeleton, Stat, cx } from "./ui";
+import { AnimatedNumber, Badge, Skeleton, Stat, cx } from "./ui";
 
 // 2 columns on phones, 4 on tablets (the buffer tile takes a full row), 5 from 1280 px.
 const GRID = "grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5";
@@ -29,14 +29,11 @@ export function KpiTiles({
   data,
   isLoading,
   daily,
-  renderValue,
 }: {
   data: MetricsResponse | undefined;
   isLoading: boolean;
   /** Per-day metrics (GET /metrics/by-day) for the sparklines. */
   daily?: GroupRow[];
-  /** Renders a tile's number; the motion layer passes an animated counter. */
-  renderValue?: (raw: number | null, format: (v: number | null) => string) => ReactNode;
 }) {
   const tiles = useMemo(() => (data ? buildTiles(data) : []), [data]);
   const sparks = useMemo(
@@ -64,7 +61,7 @@ export function KpiTiles({
           key={t.label}
           label={t.label}
           definition={t.definition}
-          value={renderValue ? renderValue(t.raw, t.format) : t.value}
+          value={<AnimatedNumber value={t.raw} format={t.format} />}
           note={t.note}
           primary={t.emphasis}
           badge={t.emphasis ? <Badge tone="accent">Primary</Badge> : undefined}

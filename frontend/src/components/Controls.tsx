@@ -12,7 +12,6 @@ import {
   fieldClass,
   fieldLabelClass,
   focusRing,
-  type SegmentedControlProps,
 } from "./ui";
 
 export const PERCENTILES = [80, 90, 95, 99] as const;
@@ -40,8 +39,6 @@ export interface ControlsProps {
   onPercentile: (p: number) => void;
   onBasis: (b: BufferBasis) => void;
   onReset: () => void;
-  /** Swaps in the animated segmented-control indicator. */
-  indicator?: SegmentedControlProps<string>["indicator"];
   className?: string;
 }
 
@@ -55,7 +52,6 @@ export function Controls({
   onPercentile,
   onBasis,
   onReset,
-  indicator,
   className,
 }: ControlsProps) {
   const id = useId();
@@ -118,7 +114,6 @@ export function Controls({
         onChange={(mode) => {
           set({ mode });
         }}
-        indicator={indicator}
       />
 
       <Select
@@ -168,7 +163,6 @@ export function Controls({
         value={basis}
         options={BASIS_OPTIONS}
         onChange={onBasis}
-        indicator={indicator}
       />
 
       <div className="flex gap-2 sm:ml-auto">

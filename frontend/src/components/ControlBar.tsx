@@ -144,7 +144,7 @@ export function ControlBar(props: ControlsProps) {
         <div aria-hidden="true" className="mb-4 flex justify-center lg:hidden">
           <span className="h-1 w-10 rounded-full bg-line-strong" />
         </div>
-        <div className="lg:rounded-card lg:border lg:border-line lg:bg-panel/80 lg:px-5 lg:py-4 lg:shadow-card lg:backdrop-blur-[2px]">
+        <div className="lg:rounded-card lg:border lg:border-line lg:bg-panel/80 lg:px-5 lg:py-4 lg:shadow-card">
           <Controls {...props} />
         </div>
         <div className="mt-5 lg:hidden">
