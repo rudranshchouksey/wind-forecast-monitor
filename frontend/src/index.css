@@ -290,6 +290,13 @@ body {
   outline: none;
 }
 
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
 /* Shaped skeleton shimmer; off under reduced motion. */
 @keyframes shimmer {
   from {

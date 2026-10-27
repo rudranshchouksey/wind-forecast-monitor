@@ -1,12 +1,11 @@
+import { Collapsible } from "./ui";
+
 export function Explainer() {
   return (
-    <details className="rounded-xl border border-line bg-surface p-5" open>
-      <summary className="cursor-pointer text-base font-semibold text-ink">
-        How to read this
-      </summary>
-      <div className="mt-3 grid gap-4 text-sm text-ink-2 md:grid-cols-2">
+    <Collapsible title="How to read this" defaultOpen>
+      <div className="grid gap-x-8 gap-y-5 text-body text-ink-2 md:grid-cols-2">
         <div>
-          <h3 className="font-medium text-ink">What is compared</h3>
+          <h3 className="font-semibold text-ink">What is compared</h3>
           <p className="mt-1">
             For every hour of delivery we take the national wind forecast (Elexon WINDFOR) that you
             could actually have seen <em>before</em> the day-ahead auction closed on the previous
@@ -15,7 +14,7 @@ export function Explainer() {
           </p>
         </div>
         <div>
-          <h3 className="font-medium text-ink">What the numbers mean</h3>
+          <h3 className="font-semibold text-ink">What the numbers mean</h3>
           <ul className="mt-1 list-disc space-y-1 pl-5">
             <li>
               <strong className="text-ink">Error</strong> = forecast − actual. Positive means wind
@@ -36,7 +35,7 @@ export function Explainer() {
           </ul>
         </div>
         <div>
-          <h3 className="font-medium text-ink">Using the buffer</h3>
+          <h3 className="font-semibold text-ink">Using the buffer</h3>
           <p className="mt-1">
             The suggested buffer is how much less wind than forecast to plan for so that actual wind
             would have been enough in the chosen share of hours (90% by default). Raise the share
@@ -47,7 +46,7 @@ export function Explainer() {
           </p>
         </div>
         <div>
-          <h3 className="font-medium text-ink">Controls</h3>
+          <h3 className="font-semibold text-ink">Controls</h3>
           <p className="mt-1">
             Change the cutoff to match the auction you trade in, or move the lead-time slider to see
             how accuracy improves as the forecast gets closer to delivery. Drag the handles under
@@ -55,6 +54,6 @@ export function Explainer() {
           </p>
         </div>
       </div>
-    </details>
+    </Collapsible>
   );
 }

@@ -1,7 +1,21 @@
 import type { MetricsResponse } from "../api/types";
 import { buildTiles } from "../lib/kpis";
-import { InfoTip } from "./InfoTip";
-import { Skeleton } from "./states";
+import { Badge, Skeleton, Stat } from "./ui";
+
+function TileSkeleton({ primary = false }: { primary?: boolean }) {
+  return (
+    <div
+      className={`flex flex-col gap-3 rounded-card border border-line bg-panel p-4 ${
+        primary ? "col-span-2 md:col-span-1" : ""
+      }`}
+    >
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-7 w-28" />
+      <Skeleton className="h-2.5 w-32" />
+      <Skeleton className="mt-1 h-6 w-full" />
+    </div>
+  );
+}
 
 export function KpiTiles({
   data,
@@ -14,7 +28,7 @@ export function KpiTiles({
     return (
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5" aria-busy={isLoading}>
         {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-28" />
+          <TileSkeleton key={i} primary={i === 0} />
         ))}
       </div>
     );
@@ -22,22 +36,16 @@ export function KpiTiles({
   return (
     <dl className="grid grid-cols-2 gap-3 md:grid-cols-5">
       {buildTiles(data).map((t) => (
-        <div
+        <Stat
           key={t.label}
-          className={`relative rounded-xl border p-4 ${
-            t.emphasis
-              ? "col-span-2 border-accent/40 bg-surface md:col-span-1"
-              : "border-line bg-surface"
-          }`}
-        >
-          <dt className="text-sm text-ink-2">
-            {t.label} <InfoTip label={t.label} text={t.definition} />
-          </dt>
-          <dd className={`mt-1 font-semibold text-ink ${t.emphasis ? "text-3xl" : "text-2xl"}`}>
-            {t.value}
-          </dd>
-          <dd className="mt-1 text-xs text-muted">{t.note}</dd>
-        </div>
+          label={t.label}
+          definition={t.definition}
+          value={t.value}
+          note={t.note}
+          primary={t.emphasis}
+          badge={t.emphasis ? <Badge tone="accent">Primary</Badge> : undefined}
+          className={t.emphasis ? "col-span-2 md:col-span-1" : undefined}
+        />
       ))}
     </dl>
   );

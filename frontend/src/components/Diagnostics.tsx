@@ -1,6 +1,7 @@
 import type { BiasDiagnosticsResponse, CorrectionResponse } from "../api/types";
 import { formatGwSigned, levelGrowthSentence } from "../lib/diagnostics";
 import { formatDeliveryDay, formatMw } from "../lib/format";
+import { Card, Collapsible, Switch } from "./ui";
 
 export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }) {
   if (!data) return null;
@@ -19,11 +20,11 @@ export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }
     ],
   ];
   return (
-    <details className="group rounded-xl border border-line bg-surface p-5">
-      <summary className="cursor-pointer text-sm font-semibold text-ink">
-        Is the bias forecast error? (diagnostics)
-      </summary>
-      <div className="mt-3 space-y-3 text-sm text-ink-2">
+    <Collapsible
+      title="Is the bias forecast error? (diagnostics)"
+      summary={`Mean forecast − actual: ${formatMw(data.overall_bias_mw, { signed: true })}`}
+    >
+      <div className="space-y-4 text-body text-ink-2">
         <p>
           If the gap were forecasting skill, it would shrink as the forecast gets closer to real
           time. It barely does, and WINDFOR stays above FUELHH even for hours that had already ended
@@ -44,7 +45,7 @@ export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }
           </p>
         )}
 
-        <table className="tabular w-full text-sm">
+        <table className="w-full text-body">
           <caption className="sr-only">
             Mean forecast minus actual under different conditions
           </caption>
@@ -54,18 +55,18 @@ export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }
                 <th scope="row" className="py-1.5 pr-4 text-left font-normal text-ink-2">
                   {k}
                 </th>
-                <td className="py-1.5 text-right font-medium text-ink">{v}</td>
+                <td className="py-1.5 text-right font-mono font-medium text-ink">{v}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
         <div className="overflow-x-auto">
-          <table className="tabular w-full min-w-[22rem] text-sm">
-            <caption className="mb-1 text-left text-xs font-medium text-ink-2">
+          <table className="w-full min-w-[22rem] text-body">
+            <caption className="mb-1.5 text-left text-label font-medium tracking-[0.04em] text-ink-2 uppercase">
               Mean forecast − actual by level
             </caption>
-            <thead className="text-xs text-muted">
+            <thead className="text-label text-muted">
               <tr>
                 <th scope="col" className="py-1 pr-3 text-left font-medium">
                   Level
@@ -87,11 +88,13 @@ export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }
                   <th scope="row" className="py-1.5 pr-3 text-left font-normal text-ink-2">
                     {b.label}
                   </th>
-                  <td className="py-1.5 pr-3 text-right text-ink">{formatGwSigned(b.bias_mw)}</td>
-                  <td className="py-1.5 pr-3 text-right text-ink">
+                  <td className="py-1.5 pr-3 text-right font-mono text-ink">
+                    {formatGwSigned(b.bias_mw)}
+                  </td>
+                  <td className="py-1.5 pr-3 text-right font-mono text-ink">
                     {formatGwSigned(data.hindcast_by_level[i]?.bias_mw)}
                   </td>
-                  <td className="py-1.5 text-right text-ink">
+                  <td className="py-1.5 text-right font-mono text-ink">
                     {formatGwSigned(data.by_actual_level[i]?.bias_mw)}
                   </td>
                 </tr>
@@ -120,12 +123,12 @@ export function BiasNote({ data }: { data: BiasDiagnosticsResponse | undefined }
             datasets, which this tool deliberately does not use.
           </p>
         </div>
-        <p className="text-xs text-muted">
+        <p className="text-label text-muted">
           Delivery days {formatDeliveryDay(data.query.from)} to {formatDeliveryDay(data.query.to)}.
           Full write-up in docs/analysis.md.
         </p>
       </div>
-    </details>
+    </Collapsible>
   );
 }
 
@@ -147,10 +150,12 @@ export function CorrectionPanel({
 }) {
   if (!available) {
     return (
-      <p className="rounded-xl border border-line bg-surface p-4 text-sm text-ink-2">
-        The bias-corrected forecast is only defined at the decision cutoff. Switch to “At decision
-        cutoff” to see it.
-      </p>
+      <Card padded={false} className="px-4 py-3.5 sm:px-5">
+        <p className="text-body text-ink-2">
+          The bias-corrected forecast is only defined at the decision cutoff. Switch to “At decision
+          cutoff” to see it.
+        </p>
+      </Card>
     );
   }
   if (!data) return null;
@@ -169,37 +174,21 @@ export function CorrectionPanel({
     ],
   ];
   return (
-    <section
-      aria-labelledby="correction-heading"
-      className="rounded-xl border border-line bg-surface p-4 sm:p-5"
+    <Card
+      title="Bias-corrected forecast"
+      subtitle={
+        <>
+          Refitted every day as actual ≈ a × forecast + b on the {data.window_days} complete days
+          before the decision, using past data only. Corrected {data.days_corrected} of{" "}
+          {data.days_total} days ({data.raw.n} hours).
+        </>
+      }
+      actions={<Switch label="Show on main chart" checked={show} onChange={onToggle} />}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 id="correction-heading" className="text-base font-semibold text-ink">
-            Bias-corrected forecast
-          </h2>
-          <p className="mt-0.5 text-sm text-ink-2">
-            Refitted every day as actual ≈ a × forecast + b on the {data.window_days} complete days
-            before the decision, using past data only. Corrected {data.days_corrected} of{" "}
-            {data.days_total} days ({data.raw.n} hours).
-          </p>
-        </div>
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-ink">
-          <input
-            type="checkbox"
-            checked={show}
-            onChange={(e) => {
-              onToggle(e.target.checked);
-            }}
-            className="h-4 w-4 accent-[var(--accent)]"
-          />
-          Show on main chart
-        </label>
-      </div>
       {data.days_corrected === 0 ? (
-        <p className="mt-3 text-sm text-ink-2">Not enough past days to fit a correction.</p>
+        <p className="text-body text-ink-2">Not enough past days to fit a correction.</p>
       ) : (
-        <table className="tabular mt-3 w-full text-sm">
+        <table className="w-full text-body">
           <caption className="sr-only">Raw versus bias-corrected forecast accuracy</caption>
           <tbody>
             {rows.map(([k, v]) => (
@@ -207,17 +196,17 @@ export function CorrectionPanel({
                 <th scope="row" className="py-1.5 pr-4 text-left font-normal text-ink-2">
                   {k}
                 </th>
-                <td className="py-1.5 text-right font-medium text-ink">{v}</td>
+                <td className="py-1.5 text-right font-mono font-medium text-ink">{v}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-      <p className="mt-2 text-xs text-muted">
+      <p className="mt-3 text-label text-muted">
         Illustrative: a simple statistical correction of the offset, not a new forecast. The fit for
         day D never sees an actual from D-1 onwards, and its forecasts use the same leakage-free
         cutoff as everything else.
       </p>
-    </section>
+    </Card>
   );
 }
