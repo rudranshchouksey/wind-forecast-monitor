@@ -5,19 +5,22 @@ day-ahead auction closes, and how much wind should they *not* count on? This app
 WINDFOR forecast against FUELHH outturn for decisions made in January 2026. It turns the error into
 a buffer recommendation for purchasing.
 
-**Live app:** _not deployed yet. Run `vercel --prod` (see [Deploy](#deploy)) and paste the URL here._
-
-![Dashboard, light mode](docs/screenshots/dashboard-light.png)
-
-<details><summary>Dark mode and 375 px mobile</summary>
+**Live app:** <https://wind-forecast-monitor-wine.vercel.app>
 
 ![Dashboard, dark mode](docs/screenshots/dashboard-dark.png)
 
-<img src="docs/screenshots/dashboard-mobile.png" alt="Dashboard on a 375 px phone, light mode" width="300">
+<details><summary>Light mode and 375 px mobile</summary>
+
+![Dashboard, light mode](docs/screenshots/dashboard-light.png)
+
 <img src="docs/screenshots/dashboard-mobile-dark.png" alt="Dashboard on a 375 px phone, dark mode" width="300">
+<img src="docs/screenshots/dashboard-mobile.png" alt="Dashboard on a 375 px phone, light mode" width="300">
 </details>
 
-Screenshots are taken from the production build (Docker image) in headless Edge.
+Screenshots are taken from the production build at 1440 px and 375 px, with reduced motion so
+every value is final. Every view is a link: the controls live in the query string, e.g.
+[`?cutoff=09:50&basis=random`](https://wind-forecast-monitor-wine.vercel.app/?cutoff=09:50&basis=random).
+Press <kbd>?</kbd> on the dashboard for keyboard shortcuts.
 
 ## Key findings (January 2026, D-1 09:20 cutoff)
 
@@ -172,14 +175,17 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 | `backend/scripts/analysis_report.py`, `spot_check.py` | print every number in `docs/analysis.md`; re-check sample hours against live Elexon |
 | `backend/tests/` | unit (selection, metrics, client, repo, ingestion, service) + API tests |
 | `frontend/src/api/` | typed client, response types, TanStack Query hooks |
-| `frontend/src/components/` | KPI tiles with definition tooltips, insight, controls, charts, diagnostics, correction panel, chart card (table view, states) |
-| `frontend/src/lib/` | formatting (Europe/London), ticks, theme, defaults |
+| `frontend/src/components/ui/` | design-system primitives: Card, Stat, SegmentedControl, Select, Slider, Button, Tooltip, Badge, Skeleton, Collapsible, Switch, AnimatedNumber |
+| `frontend/src/components/` | app shell and control bar, decision hero, KPI tiles with sparklines, chart card (table view, states), diagnostics, wind-flow background, shortcut help |
+| `frontend/src/components/charts/` | lazy-loaded Recharts charts; legends and table views stay in the initial bundle |
+| `frontend/src/lib/` | formatting (Europe/London), theme tokens, motion tokens, URL state, shortcuts |
+| `frontend/e2e/`, `frontend/scripts/check-bundle.mjs` | Playwright smoke tests; bundle-size budget |
 | `dev.ps1`, `Makefile` | Windows launcher (local dev or `-Docker`) and make targets for macOS/Linux |
 | `scripts/smoke.sh` | hits every endpoint of a running app (CI, Docker, Vercel) |
 | `api/index.py`, `vercel.json`, `requirements.txt` | Vercel function entrypoint and config |
 | `Dockerfile`, `docker-compose.yml`, `heroku.yml` | container build (multi-stage, non-root, healthcheck) |
-| `.github/workflows/ci.yml` | lint, type-check, test, build and smoke-test the image |
-| `docs/` | data notes, architecture, ADRs, analysis, video script |
+| `.github/workflows/ci.yml` | lint, type-check, test, bundle budget, Playwright e2e, build and smoke-test the image |
+| `docs/` | data notes, design brief, architecture, ADRs, analysis, video script |
 
 ## Methodology
 
@@ -224,24 +230,23 @@ Details: [docs/architecture.md](docs/architecture.md). Decisions: [docs/adr/](do
 
 ## Deploy
 
-Target: **Vercel** ([ADR 0003](docs/adr/0003-deployment-target.md)). You run these commands yourself;
-no credentials are stored in the repo. From the repo root (PowerShell or bash):
+Target: **Vercel** ([ADR 0003](docs/adr/0003-deployment-target.md)), live at
+<https://wind-forecast-monitor-wine.vercel.app>. The Vercel project is connected to this GitHub
+repo, so **every push to `main` builds and deploys production**. Pull requests get preview URLs.
+There is no CLI step and no credentials in the repo. `vercel.json` sets the install, build and
+output commands and bundles `api/index.py` with `backend/{app,data}` as one Python function.
+
+After a push, check the deployment:
 
 ```bash
-npx vercel@65.3.1 login           # interactive, in your browser
-npx vercel@65.3.1 link            # "Set up and deploy?" yes; new project; directory ./ ; keep the
-                                  # detected settings (vercel.json overrides install/build/output)
-npx vercel@65.3.1 --prod          # builds the frontend, bundles api/index.py + backend/{app,data}
-bash scripts/smoke.sh https://<project>.vercel.app   # every endpoint + the dashboard must be 200
+bash scripts/smoke.sh https://wind-forecast-monitor-wine.vercel.app   # every endpoint + the dashboard
 ```
-The project must be public: open it in a private window. If Vercel asks you to log in, turn off
-*Settings → Deployment Protection → Vercel Authentication* for production.
 
-**Checked locally:** `npx vercel@65.3.1 build --prod` succeeds (it needs `uv` on `PATH`). The Python
-function is **116.9 MB unzipped against the 250 MB limit**: pandas 43 MB, numpy 54 MB, the
+The function is **116.9 MB unzipped against the 250 MB limit**: pandas 43 MB, numpy 54 MB, the
 `wind.sqlite` snapshot 4.3 MB. Tests, docs and the frontend source are excluded, and the static
-dashboard is 3 MB. The function opens the snapshot read-only, so `POST /admin/refresh` is disabled there.
-After re-ingesting data: `make requirements` (only if dependencies changed), commit, then `vercel --prod`.
+dashboard is about 3 MB. The function opens the snapshot read-only, so `POST /admin/refresh` is
+disabled there. To refresh data: re-ingest locally, run `make requirements` (only if dependencies
+changed), commit and push.
 
 Fallback (any container host, e.g. Heroku): `heroku stack:set container -a <app>` then
 `git push heroku main`. The image honours `$PORT`.
