@@ -136,18 +136,30 @@ export function LoadingBlock({ label = "Loading" }: { label?: string }) {
 const BAR_HEIGHTS = [38, 52, 70, 88, 96, 80, 64, 50, 40, 30, 22, 16, 12, 9];
 
 /** A chart-shaped skeleton: y-axis ticks, gridlines and a faint line or bars. */
+/**
+ * A chart-shaped placeholder. With a `label` it is a pulsing loading state (role="status");
+ * without one it is a still, hidden placeholder for a chart that is ready but not yet near the
+ * viewport, so dozens of off-screen bars never animate.
+ */
 export function ChartSkeleton({
   label,
   height = 280,
   shape = "line",
 }: {
-  label: string;
+  label?: string;
   height?: number | string;
   shape?: "line" | "bars";
 }) {
+  const loading = label !== undefined;
   return (
-    <div role="status" aria-live="polite" className="flex gap-3" style={{ height }}>
-      <span className="sr-only">{label}…</span>
+    <div
+      role={loading ? "status" : undefined}
+      aria-live={loading ? "polite" : undefined}
+      aria-hidden={loading ? undefined : true}
+      className={loading ? "flex gap-3" : "skeleton-still flex gap-3"}
+      style={{ height }}
+    >
+      {loading && <span className="sr-only">{label}…</span>}
       <div aria-hidden="true" className="flex w-6 flex-col justify-between py-1">
         {Array.from({ length: 5 }, (_, i) => (
           <Skeleton key={i} className="h-2 w-5" />

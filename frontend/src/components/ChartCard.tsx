@@ -72,7 +72,13 @@ export function ChartCard({
           className="h-[calc(var(--h)*0.8px)] sm:h-[calc(var(--h)*1px)]"
           style={{ "--h": height } as CSSProperties}
         >
-          {isLoading || !near ? skeleton : <Suspense fallback={skeleton}>{children()}</Suspense>}
+          {isLoading ? (
+            skeleton
+          ) : !near ? (
+            <ChartSkeleton height="100%" shape={shape} />
+          ) : (
+            <Suspense fallback={skeleton}>{children()}</Suspense>
+          )}
         </div>
       </>
     );

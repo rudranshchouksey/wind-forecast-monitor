@@ -300,6 +300,10 @@ body {
   background: var(--raised);
   animation: pulse 1.6s var(--ease-in-out-quint) infinite;
 }
+/* Placeholders for content that is ready but deferred: no animation, no CPU. */
+.skeleton-still .skeleton {
+  animation: none;
+}
 
 /* Hairline progress bar shown on a card while it refetches. */
 @keyframes progress {

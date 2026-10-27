@@ -40,7 +40,7 @@ was. It also had to stay fast, accessible and cheap to run on a free CDN. The ap
     projection re-measures on every React commit, and each resolving query is a commit.
   - Imported directly, motion's React build added 47 kB gzip.
   - `motion/mini` keeps the slide with neither cost, and dropped the 28 kB features chunk.
-- **One signature element with a CPU budget.** The wind-flow canvas runs at 20 fps and half
+- **One signature element with a CPU budget.** The wind-flow canvas runs at 15 fps and half
   resolution, with strokes batched into 8 paths per frame. A timer schedules each frame, not every
   vsync. It pauses when the tab is hidden or the canvas is off-screen, and draws one static frame
   under reduced motion.
@@ -58,7 +58,8 @@ was. It also had to stay fast, accessible and cheap to run on a free CDN. The ap
 - **Layout shift:** CLS 0 in every live Lighthouse run, after giving skeletons the loaded geometry.
 - **Wind field CPU:** 1.6–1.8 % main-thread CPU at 1440×900 in Edge, measured as the change in
   DevTools `TaskDuration` over wall time against the reduced-motion baseline (0.01 %). That was
-  after cutting it from 4.2 %: timer wake-ups, batched strokes and 20 fps.
+  after cutting it from 4.2 %: timer wake-ups, batched strokes, 15 fps and at most 48 particles.
+  Off-screen chart placeholders are static: 62 pulsing skeleton nodes had cost another 3 %.
 
 ## Alternatives
 - **A component library (MUI, Chakra, shadcn/Radix):** faster to start, but heavier, and either

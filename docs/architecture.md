@@ -149,7 +149,7 @@ The brief is [docs/design.md](design.md); the choices are recorded in
 - **Segmented controls:** the indicator slides with `motion/mini`'s `animate` (Web Animations API).
   The selected label is measured only when the value changes or the group resizes, never on
   unrelated renders. (motion's React `layoutId` re-measured on every commit; see ADR 0006.)
-- **Wind field:** `WindField.tsx` is a half-resolution canvas at 20 fps with batched strokes, woken
+- **Wind field:** `WindField.tsx` is a half-resolution canvas at 15 fps with batched strokes, woken
   by a timer rather than every vsync. It starts once the page has loaded and the browser is idle,
   and pauses when hidden or off-screen.
 - **Reduced motion:** `usePrefersReducedMotion()` and the CSS `prefers-reduced-motion` rule turn

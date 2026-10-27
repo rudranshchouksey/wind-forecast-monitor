@@ -3,13 +3,13 @@ import { useEffect, useRef } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 import { readToken } from "../lib/theme";
 
-const FPS = 20;
+const FPS = 15;
 /** Backing-store scale: half resolution. The lines are faint and soft, so the blur is invisible
  * and the per-frame pixel work drops to a quarter. */
 const RENDER_SCALE = 0.5;
-/** Particles per 1,000 px of width, capped (docs/design.md §6: about 60 at desktop widths). */
-const DENSITY = 42;
-const MAX_PARTICLES = 64;
+/** Particles per 1,000 px of width, capped (about 48 at desktop widths). */
+const DENSITY = 34;
+const MAX_PARTICLES = 48;
 const TRAIL_FADE = 0.045;
 /** Opacity steps for batching strokes. */
 const ALPHA_LEVELS = 4;
@@ -41,7 +41,7 @@ function spawn(w: number, h: number, anywhere: boolean): Particle {
 
 /**
  * The signature background: faint particles drifting along a flow field, drawn on a canvas at
- * 20 fps at half resolution. It pauses when the tab is hidden or the canvas is off-screen,
+ * 15 fps at half resolution. It pauses when the tab is hidden or the canvas is off-screen,
  * and under reduced motion it draws one static frame of streamlines instead.
  */
 export function WindField({ className }: { className?: string }) {

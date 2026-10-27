@@ -168,10 +168,10 @@ The `motion` package, pinned to an exact version, with tokens in `src/lib/motion
 - **First-load skeletons** are shaped like the content they replace (tile, chart with axes,
   histogram bars), never spinners.
 - **Wind-flow field:**
-  - About 60 faint particles advected along a smooth noise field on a `<canvas>`. It pauses when
+  - About 48 faint particles advected along a smooth noise field on a `<canvas>`. It pauses when
     the tab is hidden or the canvas is off-screen (IntersectionObserver).
   - Budget: under 2 % CPU. The first build (30 fps, a rAF request every vsync, one stroke per
-    particle) measured 4.2 %. As shipped it runs at 20 fps on a half-resolution canvas, with
+    particle) measured 4.2 %. As shipped it runs at 15 fps on a half-resolution canvas, with
     strokes batched into 8 paths and a timer waking it only when a frame is due. That measures
     1.6–1.8 % main-thread CPU at 1440×900 in Edge (see ADR 0006).
 - **Reduced motion:** `prefers-reduced-motion: reduce` turns off every animation. Numbers show
