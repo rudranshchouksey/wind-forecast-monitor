@@ -29,6 +29,8 @@ Object.defineProperty(window, "matchMedia", {
 afterEach(() => {
   cleanup();
   resetThemeForTests();
+  // URL state persists across tests in one file; start each test from a clean address.
+  window.history.replaceState(null, "", "/");
   try {
     localStorage.clear();
   } catch {

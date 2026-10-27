@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { API_BASE, csvUrl, type AnalysisParams } from "./api/client";
 import {
@@ -12,7 +12,7 @@ import {
   useMetrics,
   useSeries,
 } from "./api/hooks";
-import type { BufferBasis, MetaResponse } from "./api/types";
+import type { MetaResponse } from "./api/types";
 import { AppHeader } from "./components/AppHeader";
 import { ChartCard } from "./components/ChartCard";
 import { ControlBar } from "./components/ControlBar";
@@ -30,12 +30,15 @@ import { BiasNote, CorrectionPanel } from "./components/Diagnostics";
 import { Explainer } from "./components/Explainer";
 import { HeroSkeleton, InsightCard } from "./components/InsightCard";
 import { KpiTiles } from "./components/KpiTiles";
+import { ShortcutHelp } from "./components/ShortcutHelp";
 import { ErrorState } from "./components/states";
-import { Card, Reveal, Skeleton } from "./components/ui";
+import { Button, Card, Reveal, Skeleton } from "./components/ui";
 import { WindField } from "./components/WindField";
 import { formatDeliveryDay, formatHourOfDay } from "./lib/format";
 import { endFirstLoadSoon } from "./lib/motion";
-import { defaultParams } from "./lib/params";
+import { useShortcuts } from "./lib/shortcuts";
+import { toggleTheme } from "./lib/theme";
+import { defaultView, useUrlState, type ViewState } from "./lib/urlState";
 
 const HISTOGRAM_BIN_MW = 500;
 
@@ -55,11 +58,35 @@ function useDebounced<T>(value: T, ms: number): T {
 
 const PAGE = "mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8";
 
-function Dashboard({ meta }: { meta: MetaResponse }) {
-  const [rawParams, setParams] = useState<AnalysisParams>(() => defaultParams(meta));
-  const [percentile, setPercentile] = useState(meta.default_percentile);
-  const [basis, setBasis] = useState<BufferBasis>("total");
-  const [showCorrected, setShowCorrected] = useState(false);
+/** Slider drags and date edits replace the history entry; every other change adds one. */
+function isContinuous(a: AnalysisParams, b: AnalysisParams): boolean {
+  const same = (k: keyof AnalysisParams) => a[k] === b[k];
+  const onlyHorizon = same("from") && same("to") && same("mode") && same("cutoffTime");
+  const onlyDates = same("mode") && same("cutoffTime") && same("horizonH");
+  return onlyHorizon || onlyDates;
+}
+
+function Dashboard({
+  meta,
+  helpOpen,
+  onHelp,
+}: {
+  meta: MetaResponse;
+  helpOpen: boolean;
+  onHelp: () => void;
+}) {
+  const [view, setView] = useUrlState(meta);
+  const { params: rawParams, percentile, basis, corrected: showCorrected } = view;
+  const [announcement, setAnnouncement] = useState("");
+  const patch = (next: Partial<ViewState>, replace = false) => {
+    setView({ ...view, ...next }, { replace });
+  };
+  const setParams = (p: AnalysisParams) => {
+    patch({ params: p }, isContinuous(rawParams, p));
+  };
+  const reset = () => {
+    setView(defaultView(meta));
+  };
   const params = useDebounced(rawParams, 200);
   const cutoffMode = params.mode === "cutoff";
 
@@ -84,6 +111,37 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
       : `forecast made ≥ ${params.horizonH} h ahead`;
   const corrected = showCorrected && cutoffMode;
 
+  useShortcuts(
+    {
+      ...Object.fromEntries(
+        meta.cutoff_presets.slice(0, 9).map((p, i) => [
+          String(i + 1),
+          () => {
+            patch({ params: { ...rawParams, mode: "cutoff", cutoffTime: p.time } });
+            setAnnouncement(`Cutoff: ${p.label}`);
+          },
+        ]),
+      ),
+      m: () => {
+        const mode = rawParams.mode === "cutoff" ? "horizon" : "cutoff";
+        patch({ params: { ...rawParams, mode } });
+        setAnnouncement(mode === "cutoff" ? "At decision cutoff" : "At fixed lead time");
+      },
+      b: () => {
+        const next = basis === "total" ? "random" : "total";
+        patch({ basis: next });
+        setAnnouncement(next === "total" ? "Include systematic offset" : "Random error only");
+      },
+      t: toggleTheme,
+      r: () => {
+        reset();
+        setAnnouncement("Reset");
+      },
+      "?": onHelp,
+    },
+    !helpOpen,
+  );
+
   return (
     <>
       <ControlBar
@@ -93,15 +151,17 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
         basis={basis}
         csvHref={csvUrl(params)}
         onChange={setParams}
-        onPercentile={setPercentile}
-        onBasis={setBasis}
-        onReset={() => {
-          setParams(defaultParams(meta));
-          setPercentile(meta.default_percentile);
-          setBasis("total");
-          setShowCorrected(false);
+        onPercentile={(p) => {
+          patch({ percentile: p });
         }}
+        onBasis={(b) => {
+          patch({ basis: b });
+        }}
+        onReset={reset}
       />
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
 
       <main id="main" className={`${PAGE} space-y-6 pt-6 pb-10 sm:space-y-8`}>
         <p className="max-w-3xl text-body text-ink-2">
@@ -148,7 +208,9 @@ function Dashboard({ meta }: { meta: MetaResponse }) {
             <CorrectionPanel
               data={correction.data}
               show={showCorrected}
-              onToggle={setShowCorrected}
+              onToggle={(v) => {
+                patch({ corrected: v });
+              }}
               available={cutoffMode}
             />
           </Reveal>
@@ -285,6 +347,13 @@ function DashboardSkeleton() {
 
 export function App() {
   const meta = useMeta();
+  const [helpOpen, setHelpOpen] = useState(false);
+  const openHelp = useCallback(() => {
+    setHelpOpen(true);
+  }, []);
+  const closeHelp = useCallback(() => {
+    setHelpOpen(false);
+  }, []);
   return (
     <div className="relative isolate flex min-h-dvh flex-col">
       <div
@@ -299,7 +368,22 @@ export function App() {
       >
         Skip to content
       </a>
-      <AppHeader meta={meta.data} />
+      <AppHeader
+        meta={meta.data}
+        actions={
+          meta.data && (
+            <Button
+              variant="ghost"
+              onClick={openHelp}
+              aria-label="Keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+              className="w-8 px-0 font-mono"
+            >
+              ?
+            </Button>
+          )
+        }
+      />
       {meta.error ? (
         <main id="main" className={`${PAGE} pt-6`}>
           <Card>
@@ -307,7 +391,10 @@ export function App() {
           </Card>
         </main>
       ) : meta.data ? (
-        <Dashboard meta={meta.data} />
+        <>
+          <Dashboard meta={meta.data} helpOpen={helpOpen} onHelp={openHelp} />
+          <ShortcutHelp open={helpOpen} onClose={closeHelp} presets={meta.data.cutoff_presets} />
+        </>
       ) : (
         <DashboardSkeleton />
       )}

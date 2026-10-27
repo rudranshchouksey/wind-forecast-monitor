@@ -2,6 +2,7 @@ import { useId } from "react";
 
 import type { AnalysisParams } from "../api/client";
 import type { BufferBasis, MetaResponse, Mode } from "../api/types";
+import { HORIZON_MAX, HORIZON_MIN, PERCENTILES } from "../lib/params";
 import {
   Button,
   ButtonLink,
@@ -14,10 +15,7 @@ import {
   focusRing,
 } from "./ui";
 
-export const PERCENTILES = [80, 90, 95, 99] as const;
-export const HORIZON_MIN = 1;
-/** Every hour has a forecast up to ~46 h ahead; beyond that WINDFOR coverage thins out. */
-export const HORIZON_MAX = 60;
+export { HORIZON_MAX, HORIZON_MIN, PERCENTILES } from "../lib/params";
 
 const MODE_OPTIONS = [
   { value: "cutoff", label: "At decision cutoff", title: "Shortcut: M" },
