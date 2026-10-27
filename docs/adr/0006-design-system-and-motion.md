@@ -56,10 +56,32 @@ was. It also had to stay fast, accessible and cheap to run on a free CDN. The ap
 - **Initial JS:** 81.6 kB gzip, down from 175.7 kB (one 607 kB chunk) before the redesign.
 - **Total JS:** 195.7 kB gzip. Recharts (109.8 kB) loads after first paint, with the charts.
 - **Layout shift:** CLS 0 in every live Lighthouse run, after giving skeletons the loaded geometry.
-- **Wind field CPU:** 1.6–1.8 % main-thread CPU at 1440×900 in Edge, measured as the change in
-  DevTools `TaskDuration` over wall time against the reduced-motion baseline (0.01 %). That was
-  after cutting it from 4.2 %: timer wake-ups, batched strokes, 15 fps and at most 48 particles.
-  Off-screen chart placeholders are static: 62 pulsing skeleton nodes had cost another 3 %.
+- **Wind field CPU:** 1.6–1.8 % main-thread CPU on a local preview at 1440×900 in Edge, and
+  1.9–2.2 % on the live site. Measured as the change in DevTools `TaskDuration` over wall time,
+  against the reduced-motion baseline (0.01 %). It started at 4.2 % and came down through timer
+  wake-ups, batched strokes, 15 fps and at most 48 particles. Off-screen chart placeholders are
+  static: 62 pulsing skeleton nodes had cost another 3 %.
+- **Lighthouse 13.5.0 on the live site.** Run locally in headless Edge, three runs per preset on
+  the last two deploys:
+
+  | Category | Desktop | Mobile |
+  |---|---|---|
+  | Performance | 79–93 | 59–72 |
+  | Accessibility | 100 | 100 |
+  | Best practices | 100 | 100 |
+  | SEO | 100 | 100 (one run 92) |
+
+  - CLS is 0 in every run.
+  - Desktop FCP is 0.3–0.4 s and LCP 0.7–0.9 s.
+  - Mobile LCP is 2.8–3.6 s, and Total Blocking Time 1.1–2.5 s under Lighthouse's 4× CPU slowdown.
+  - The SEO 92 was "robots.txt is not valid" with no details; the file is served as valid
+    `text/plain`.
+  - **Caveat:** the measuring machine is slow, with a Lighthouse CPU benchmark index of 500–650
+    against well over 1,000 on a typical laptop. Mobile throttling multiplies that, and scores moved
+    about ±10 points between identical runs. Google's PageSpeed Insights (standard hardware) was
+    unavailable: its keyless quota was used up.
+  - **Result:** the Performance target (≥ 90) is met on desktop in the better runs and not met on
+    mobile on this hardware. The other three targets (≥ 95) are met.
 
 ## Alternatives
 - **A component library (MUI, Chakra, shadcn/Radix):** faster to start, but heavier, and either
